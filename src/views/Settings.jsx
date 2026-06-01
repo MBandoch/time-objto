@@ -72,9 +72,26 @@ export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, pomoCon
   const [idle, setIdle] = useState(true);
   const [titles, setTitles] = useState(true);
   const [reminders, setReminders] = useState(false);
+  const [testStatus, setTestStatus] = useState(null); // null | 'testing' | 'ok' | 'fail'
   const setPomo = (k, v) => setPomoConfig((c) => ({ ...c, [k]: v }));
   const setSyncK = (k, v) => setSync((s) => ({ ...s, [k]: v }));
   const urlValid = /^https?:\/\/.+/.test(sync.url.trim());
+
+  const testConnection = async () => {
+    if (!urlValid) return;
+    setTestStatus('testing');
+    try {
+      const base = sync.url.replace(/\/sessions\/?$/, '');
+      const res = await fetch(`${base}/health`, {
+        headers: sync.token ? { Authorization: `Bearer ${sync.token}` } : {},
+        signal: AbortSignal.timeout(5000),
+      });
+      setTestStatus(res.ok ? 'ok' : 'fail');
+    } catch {
+      setTestStatus('fail');
+    }
+    setTimeout(() => setTestStatus(null), 3000);
+  };
 
   return (
     <div className="scroll" style={{ height: '100%', overflowY: 'auto' }}>
@@ -126,25 +143,37 @@ export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, pomoCon
             <Switch on={sync.enabled} onClick={() => setSyncK('enabled', !sync.enabled)} />
           </Row>
           <div style={{ padding: '15px 0', borderBottom: '1px solid var(--line-1)', opacity: sync.enabled ? 1 : 0.5, pointerEvents: sync.enabled ? 'auto' : 'none', transition: 'opacity 140ms' }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-1)', marginBottom: 8 }}>Server endpoint</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-1)', marginBottom: 8 }}>Servidor — POST /sessions</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
               <input
                 type="url" value={sync.url} onChange={(e) => setSyncK('url', e.target.value)}
-                placeholder="https://api.studio.com/timesheet"
+                placeholder="http://localhost:3001/sessions"
                 spellCheck={false}
                 style={{
                   flex: 1, minWidth: 0, fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--fg-1)',
                   background: 'var(--bg)', border: '1px solid ' + (sync.url && !urlValid ? 'var(--obj-danger)' : 'var(--line-2)'),
                   borderRadius: 'var(--r-sm)', padding: '9px 11px', outline: 'none',
                 }} />
-              <button className="btn btn-ghost btn-sm" disabled={!urlValid} style={{ opacity: urlValid ? 1 : 0.4, flex: 'none' }}>Test</button>
+              <button className="btn btn-ghost btn-sm" onClick={testConnection}
+                disabled={!urlValid || testStatus === 'testing'}
+                style={{ opacity: urlValid ? 1 : 0.4, flex: 'none',
+                  color: testStatus === 'ok' ? 'var(--obj-success)' : testStatus === 'fail' ? 'var(--obj-danger)' : undefined }}>
+                {testStatus === 'testing' ? '…' : testStatus === 'ok' ? '✓ OK' : testStatus === 'fail' ? '✗ Falhou' : 'Testar'}
+              </button>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 9, fontSize: 12, color: sync.url && !urlValid ? 'var(--obj-danger)' : 'var(--fg-3)' }}>
-              {sync.url && !urlValid
-                ? <span>Enter a full URL starting with http:// or https://</span>
-                : urlValid
-                  ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--obj-success)' }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--obj-success)' }} /> Endpoint set — paste your sync URL here for now.</span>
-                  : <span>Paste the link to your sync endpoint. POST as JSON; auth & format come later.</span>}
+            <input
+              type="password" value={sync.token || ''} onChange={(e) => setSyncK('token', e.target.value)}
+              placeholder="Bearer token (opcional)"
+              spellCheck={false}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--fg-1)',
+                background: 'var(--bg)', border: '1px solid var(--line-2)',
+                borderRadius: 'var(--r-sm)', padding: '8px 11px', outline: 'none',
+              }} />
+            <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 7 }}>
+              Docker: <span className="mono" style={{ fontSize: 11 }}>docker compose up -d</span>
+              {' · '}endpoint padrão: <span className="mono" style={{ fontSize: 11 }}>http://localhost:3001/sessions</span>
             </div>
           </div>
           <Row title="Sync frequency" desc="How often confirmed sessions are pushed upstream." last>

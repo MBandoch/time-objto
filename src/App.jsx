@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { PROJECTS, EVENTS, projById, RULE_TYPES, fmt } from './data.js';
 import { PomodoroTimer } from './components/PomodoroTimer.jsx';
 import { ManualEntryModal } from './components/ManualEntryModal.jsx';
@@ -243,7 +243,7 @@ export default function App() {
   const [projects, setProjects] = useState(PROJECTS);
   const [events, setEvents] = useState(EVENTS);
   const [pomoConfig, setPomoConfig] = useState({ focus: 25, shortBreak: 5, longBreak: 15, cycles: 4 });
-  const [sync, setSync] = useState({ enabled: false, url: '', interval: 'realtime' });
+  const [sync, setSync] = useState({ enabled: false, url: '', token: '', interval: 'realtime' });
   const [showManualEntry, setShowManualEntry] = useState(false);
 
   // Native window tracking (Tauri only — no-op in browser)
@@ -272,14 +272,61 @@ export default function App() {
     return () => clearInterval(t);
   }, [projects]);
 
-  const assign = (id, project) => setEvents((es) => es.map((e) => e.id === id
-    ? { ...e, project, status: project ? 'confirmed' : 'unsorted', confidence: project ? 'high' : e.confidence } : e));
-  const confirm = (id) => setEvents((es) => es.map((e) => e.id === id ? { ...e, status: 'confirmed' } : e));
-  const confirmAll = () => setEvents((es) => es.map((e) => e.status === 'suggested' ? { ...e, status: 'confirmed' } : e));
+  // Server sync
+  const syncRef = useRef(sync);
+  syncRef.current = sync;
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
+
+  const pushToServer = useCallback(async (sessions) => {
+    const s = syncRef.current;
+    if (!s.enabled || !s.url) return;
+    const payload = sessions.map((ev) => {
+      const p = projectsRef.current.find((pr) => pr.id === ev.project);
+      return { ...ev, projectName: p?.name || '', client: p?.client || '', billable: p?.billable || false, rate: p?.rate || 0 };
+    });
+    try {
+      await fetch(s.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(s.token ? { Authorization: `Bearer ${s.token}` } : {}) },
+        body: JSON.stringify(payload),
+      });
+    } catch { /* network error — silently skip, will retry on next confirm */ }
+  }, []);
+
+  const assign = (id, project) => setEvents((es) => {
+    const next = es.map((e) => e.id === id
+      ? { ...e, project, status: project ? 'confirmed' : 'unsorted', confidence: project ? 'high' : e.confidence } : e);
+    if (project && syncRef.current.interval === 'realtime') {
+      const ev = next.find((e) => e.id === id);
+      if (ev?.status === 'confirmed') pushToServer([ev]);
+    }
+    return next;
+  });
+  const confirm = (id) => setEvents((es) => {
+    const next = es.map((e) => e.id === id ? { ...e, status: 'confirmed' } : e);
+    if (syncRef.current.interval === 'realtime') {
+      const ev = next.find((e) => e.id === id);
+      if (ev) pushToServer([ev]);
+    }
+    return next;
+  });
+  const confirmAll = () => setEvents((es) => {
+    const next = es.map((e) => e.status === 'suggested' ? { ...e, status: 'confirmed' } : e);
+    if (syncRef.current.interval === 'realtime') pushToServer(next.filter((e) => e.status === 'confirmed'));
+    return next;
+  });
   const bulkAssign = (ids, project) => setEvents((es) => es.map((e) => ids.includes(e.id)
     ? { ...e, project, status: project ? 'confirmed' : 'unsorted', confidence: project ? 'high' : e.confidence } : e));
-  const bulkConfirm = (ids) => setEvents((es) => es.map((e) => ids.includes(e.id) ? { ...e, status: 'confirmed' } : e));
-  const addManualEntry = (ev) => setEvents((es) => [...es, ev]);
+  const bulkConfirm = (ids) => setEvents((es) => {
+    const next = es.map((e) => ids.includes(e.id) ? { ...e, status: 'confirmed' } : e);
+    if (syncRef.current.interval === 'realtime') pushToServer(next.filter((e) => ids.includes(e.id)));
+    return next;
+  });
+  const addManualEntry = (ev) => {
+    setEvents((es) => [...es, ev]);
+    if (syncRef.current.interval === 'realtime') pushToServer([ev]);
+  };
   const actions = { assign, confirm, confirmAll, bulkAssign, bulkConfirm, addManualEntry, openManualEntry: () => setShowManualEntry(true) };
 
   const stats = useMemo(() => {
