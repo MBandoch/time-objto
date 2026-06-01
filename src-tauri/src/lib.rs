@@ -1,8 +1,13 @@
 use tauri::{
     Manager,
+    WebviewUrl, WebviewWindowBuilder,
     menu::{Menu, MenuItem},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
 };
+use std::sync::Mutex;
+
+// Preferência de fechamento da janela principal: "tray" (esconde) ou "quit" (encerra)
+struct CloseBehavior(Mutex<String>);
 
 // Estrutura devolvida ao front-end: título da janela + executável do processo
 #[derive(serde::Serialize, Clone, Default)]
@@ -118,9 +123,63 @@ fn get_idle_seconds() -> u32 {
     idle_seconds()
 }
 
+// Define o comportamento ao fechar a janela principal ("tray" ou "quit").
+#[tauri::command]
+fn set_close_behavior(state: tauri::State<CloseBehavior>, mode: String) {
+    if let Ok(mut b) = state.0.lock() {
+        *b = mode;
+    }
+}
+
+// Abre (ou foca) a janela flutuante always-on-top.
+#[tauri::command]
+fn open_mini_widget(app: tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("widget") {
+        let _ = w.show();
+        let _ = w.set_focus();
+        return;
+    }
+    let _ = WebviewWindowBuilder::new(&app, "widget", WebviewUrl::App("index.html".into()))
+        .title("OBJ_TO")
+        .inner_size(280.0, 150.0)
+        .min_inner_size(240.0, 120.0)
+        .always_on_top(true)
+        .decorations(false)
+        .resizable(true)
+        .skip_taskbar(true)
+        .build();
+}
+
+// Esconde a janela flutuante.
+#[tauri::command]
+fn close_mini_widget(app: tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("widget") {
+        let _ = w.close();
+    }
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .manage(CloseBehavior(Mutex::new("tray".to_string())))
+        .on_window_event(|window, event| {
+            // Ao fechar a janela principal: esconde para a bandeja ou encerra,
+            // conforme a preferência. A janela flutuante sempre fecha de fato.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    let mode = window
+                        .state::<CloseBehavior>()
+                        .0
+                        .lock()
+                        .map(|b| b.clone())
+                        .unwrap_or_else(|_| "tray".to_string());
+                    if mode == "tray" {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
+                }
+            }
+        })
         .setup(|app| {
             let show = MenuItem::with_id(app, "show", "Open OBJ_TO", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -151,7 +210,14 @@ pub fn run() {
                 .build(app)?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_active_window, get_window_info, get_idle_seconds])
+        .invoke_handler(tauri::generate_handler![
+            get_active_window,
+            get_window_info,
+            get_idle_seconds,
+            set_close_behavior,
+            open_mini_widget,
+            close_mini_widget
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

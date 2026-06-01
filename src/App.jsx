@@ -283,9 +283,13 @@ export default function App() {
   const [syncStatus, setSyncStatus] = useState(null);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [monitorAll, setMonitorAll] = useState(false);
+  // Comportamento ao fechar a janela: 'tray' (minimizar para bandeja) ou 'quit'
+  const [closeBehavior, setCloseBehavior] = useState(() => localStorage.getItem('objto_close_behavior') || 'tray');
 
   // Live tracking state — paused by default (item 5)
   const [liveTracking, setLiveTracking] = useState(LIVE_INIT);
+  const liveTrackingRef = useRef(liveTracking);
+  liveTrackingRef.current = liveTracking;
 
   // Tracking tick
   useEffect(() => {
@@ -293,6 +297,27 @@ export default function App() {
     const id = setInterval(() => setLiveTracking(lt => ({ ...lt, elapsed: lt.elapsed + 1 })), 1000);
     return () => clearInterval(id);
   }, [liveTracking.running]);
+
+  // Persiste e informa o Rust sobre o comportamento ao fechar
+  const saveCloseBehavior = (mode) => {
+    setCloseBehavior(mode);
+    localStorage.setItem('objto_close_behavior', mode);
+  };
+  useEffect(() => {
+    if (!isTauri()) return;
+    import('@tauri-apps/api/core').then(({ invoke }) => invoke('set_close_behavior', { mode: closeBehavior })).catch(() => {});
+  }, [closeBehavior]);
+
+  // Abre a janela flutuante real (Tauri); fora do Tauri, mostra a pré-visualização interna
+  const openMiniWindow = useCallback(async () => {
+    if (!isTauri()) { setView('widget'); return; }
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('open_mini_widget');
+    } catch {
+      setView('widget'); // fallback: nunca deixa o botão sem efeito
+    }
+  }, []);
 
   const toggleTracking = () => setLiveTracking(lt => ({
     ...lt, running: !lt.running, startedAt: lt.startedAt ?? Date.now(),
@@ -347,6 +372,33 @@ export default function App() {
   projectsRef.current = projects;
   // Segmento de atividade em andamento: { project, app, title, doc, startMs }
   const segmentRef    = useRef(null);
+
+  // Estado de rastreamento pronto para exibição na janela flutuante
+  const trackingPayload = useCallback(() => {
+    const lt = liveTrackingRef.current;
+    const p = projectsRef.current.find(pr => pr.id === lt.project);
+    return {
+      running: lt.running, elapsed: lt.elapsed,
+      doc: lt.doc || lt.title || '', app: lt.app || '',
+      projectName: p?.name || '', projectColor: p?.color || '',
+    };
+  }, []);
+
+  // Emite o estado para a janela flutuante sempre que muda + responde ao pedido inicial dela
+  useEffect(() => {
+    if (!isTauri()) return;
+    import('@tauri-apps/api/event').then(({ emit }) => emit('tracking', trackingPayload())).catch(() => {});
+  }, [liveTracking, projects, trackingPayload]);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let unlisten = null, alive = true;
+    import('@tauri-apps/api/event').then(async ({ listen, emit }) => {
+      unlisten = await listen('widget-ready', () => emit('tracking', trackingPayload()));
+      if (!alive && unlisten) unlisten();
+    }).catch(() => {});
+    return () => { alive = false; if (unlisten) unlisten(); };
+  }, [trackingPayload]);
 
   const POLL_MS = 4000;     // intervalo de verificação (igual ao Python: 4s)
   const IDLE_LIMIT = 120;   // segundos ociosos antes de pausar (igual ao Python)
@@ -557,7 +609,7 @@ export default function App() {
             onPomoToggle={pomoToggle} onPomoStartStop={pomoStartStop} onPomoSkip={pomoSkip} onPomoReset={pomoReset}
             liveTracking={liveTracking} projects={projects}
             onToggleTracking={toggleTracking} onDiscardTracking={discardTracking}
-            onPopOut={() => setView('widget')}
+            onPopOut={openMiniWindow}
             isMobile={isMobile} onCloseDrawer={() => setDrawerOpen(false)}
           />
         </nav>
@@ -577,8 +629,8 @@ export default function App() {
               {view === 'review'    && <Review events={events} actions={actions} projects={projects} />}
               {view === 'dashboard' && <Dashboard projects={projects} events={events} />}
               {view === 'projects'  && <Projects projects={projects} setProjects={setProjects} />}
-              {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} onAddManual={() => setShowManualEntry(true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} events={events} projects={projects} username={username} setUsername={saveUsername} syncStatus={syncStatus} onSyncNow={() => syncWithServer()} monitorAll={monitorAll} setMonitorAll={setMonitorAll} />}
-              {view === 'widget'    && <Widget />}
+              {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} onAddManual={() => setShowManualEntry(true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} events={events} projects={projects} username={username} setUsername={saveUsername} syncStatus={syncStatus} onSyncNow={() => syncWithServer()} monitorAll={monitorAll} setMonitorAll={setMonitorAll} closeBehavior={closeBehavior} setCloseBehavior={saveCloseBehavior} onOpenMiniWindow={openMiniWindow} />}
+              {view === 'widget'    && <Widget liveTracking={liveTracking} projects={projects} onOpenWindow={openMiniWindow} />}
             </Suspense>
           </div>
         </main>
