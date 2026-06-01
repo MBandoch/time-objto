@@ -1,0 +1,16 @@
+{
+  "name": "time-objto-server",
+  "version": "1.0.0",
+  "description": "OBJ_TO Time Tracker — sync server",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.18.3"
+  }
+}
