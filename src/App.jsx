@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import { PROJECTS, EVENTS, RULE_TYPES, fmt } from './data.js';
+import { detectActivity, isTauri, uid } from './utils/tracking.js';
 import { PomodoroBar } from './components/PomodoroTimer.jsx';
 import { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakRadio } from './components/TweaksPanel.jsx';
 import { MainView } from './views/MainView.jsx';
@@ -33,10 +34,6 @@ function Wordmark({ tone = 'ink' }) {
   );
 }
 
-function extractAppName(title) {
-  const parts = title.split(/ [—–|] | - /);
-  return parts[parts.length - 1].trim() || title;
-}
 
 // ---- Live tracking sidebar card ----
 const LIVE_INIT = { running: false, startedAt: null, elapsed: 0, app: '', title: '', project: null };
@@ -236,25 +233,6 @@ function PomoPrompt({ onStart, onDismiss }) {
   );
 }
 
-function matchTitleToProject(title, projects) {
-  for (const p of projects) {
-    for (const rule of p.rules) {
-      let match = false;
-      if (rule.type === 'exact') match = title === rule.pattern;
-      else if (rule.type === 'contains') match = title.includes(rule.pattern);
-      else if (rule.type === 'starts_with') match = title.startsWith(rule.pattern);
-      else if (rule.type === 'ends_with') match = title.endsWith(rule.pattern);
-      else if (rule.type === 'glob') {
-        const re = new RegExp('^' + rule.pattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$', 'i');
-        match = re.test(title) || title.includes(rule.pattern.replace(/\*/g, ''));
-      } else if (rule.type === 'regex') {
-        try { match = new RegExp(rule.pattern, 'i').test(title); } catch { /* ignore */ }
-      }
-      if (match) return p.id;
-    }
-  }
-  return null;
-}
 
 // First run: show onboarding if setup hasn't been completed
 const isFirstRun = !localStorage.getItem('objto_setup_done');
@@ -356,56 +334,77 @@ export default function App() {
   const pomoEndSession = () => setPomo({ ...POMO_INIT, secondsLeft: pomoConfig.focus * 60 });
 
   // Refs for polling closures
-  const activeWindowRef  = useRef('');
-  const idleRef          = useRef(0);
-  const projectsRef      = useRef(projects);
-  projectsRef.current    = projects;
-  const monitorAllRef    = useRef(monitorAll);
-  monitorAllRef.current  = monitorAll;
-  const liveTrackingRef  = useRef(liveTracking);
-  liveTrackingRef.current = liveTracking;
+  const projectsRef   = useRef(projects);
+  projectsRef.current = projects;
+  // Segmento de atividade em andamento: { project, app, title, startMs }
+  const segmentRef    = useRef(null);
 
-  // Native window tracking via Tauri (item 6 — auto-session on window change)
+  const POLL_MS = 4000;     // intervalo de verificação (igual ao Python: 4s)
+  const IDLE_LIMIT = 120;   // segundos ociosos antes de pausar (igual ao Python)
+  const MIN_COMMIT_SEC = 30; // descarta janelas com menos de 30s de uso
+
+  // Native window tracking via Tauri (motor portado da versão Python v4).
+  // Ativo quando "Monitorar todos os programas" está ligado: detecta a janela
+  // em primeiro plano, acumula tempo e grava uma sessão a cada troca de janela.
   useEffect(() => {
-    if (typeof window.__TAURI__ === 'undefined') return;
+    if (!isTauri() || !monitorAll) return;
+    let cancelled = false;
+    let invoke = null;
+
+    const commitSegment = (endMs) => {
+      const seg = segmentRef.current;
+      segmentRef.current = null;
+      if (!seg) return;
+      const sec = Math.round((endMs - seg.startMs) / 1000);
+      if (sec < MIN_COMMIT_SEC) return;
+      setEvents(es => [...es, {
+        id: uid(),
+        start: Math.round(seg.startMs / 1000),
+        end: Math.round(endMs / 1000),
+        dur: Math.max(1, Math.round(sec / 60)),
+        app: seg.app,
+        title: seg.title,
+        project: seg.project,
+        confidence: seg.project ? 'high' : 'low',
+        status: seg.project ? 'suggested' : 'unsorted',
+        auto: true,
+      }]);
+    };
+
     const poll = async () => {
       try {
-        const { invoke } = await import('@tauri-apps/api/core');
+        if (!invoke) ({ invoke } = await import('@tauri-apps/api/core'));
         const [title, idle] = await Promise.all([invoke('get_active_window'), invoke('get_idle_seconds')]);
-        if (!title) return;
-        idleRef.current = idle;
+        if (cancelled) return;
+        const now = Date.now();
 
-        const prevTitle = activeWindowRef.current;
-        activeWindowRef.current = title;
-        const titleChanged = title !== prevTitle && prevTitle;
-        const matched = matchTitleToProject(title, projectsRef.current);
-
-        if (monitorAllRef.current && titleChanged) {
-          const lt = liveTrackingRef.current;
-          if (lt.running && lt.elapsed >= 30) {
-            const now = Date.now();
-            setEvents(es => [...es, {
-              id: crypto.randomUUID(),
-              start: Math.round((now - lt.elapsed * 1000) / 1000),
-              end: Math.round(now / 1000),
-              dur: Math.round(lt.elapsed / 60),
-              app: lt.app || extractAppName(prevTitle),
-              title: lt.title || prevTitle,
-              project: lt.project,
-              confidence: lt.project ? 'high' : 'low',
-              status: 'suggested',
-            }]);
-          }
-          setLiveTracking({ running: idle < 120, startedAt: Date.now(), elapsed: 0, app: extractAppName(title), title, project: matched });
-        } else if (matched && title !== prevTitle) {
-          setLiveTracking(lt => ({ ...lt, project: matched, app: extractAppName(title), title }));
+        // Ocioso ou sem janela → fecha o segmento atual e pausa o contador
+        if (!title || idle >= IDLE_LIMIT) {
+          commitSegment(now);
+          setLiveTracking(lt => (lt.running ? { ...lt, running: false } : lt));
+          return;
         }
+
+        const det = detectActivity(title, projectsRef.current);
+        const seg = segmentRef.current;
+        const changed = !seg || seg.title !== det.title || seg.project !== det.project;
+        if (changed) {
+          commitSegment(now);              // grava a janela anterior como sessão
+          segmentRef.current = { project: det.project, app: det.app, title: det.title, startMs: now };
+        }
+        const elapsed = Math.round((now - segmentRef.current.startMs) / 1000);
+        setLiveTracking({ running: true, startedAt: segmentRef.current.startMs, elapsed, app: det.app, title: det.title, project: det.project });
       } catch { /* não está no Tauri */ }
     };
+
     poll();
-    const interval = setInterval(poll, 4000);
-    return () => clearInterval(interval);
-  }, [projects]);
+    const interval = setInterval(poll, POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      commitSegment(Date.now());           // grava o último segmento ao desligar
+    };
+  }, [monitorAll]);
 
   // Server sync
   const syncRef      = useRef(sync);
