@@ -67,7 +67,7 @@ function Stepper({ value, onChange, min = 1, max = 120, suffix = 'm' }) {
   );
 }
 
-export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, pomoConfig, setPomoConfig, sync, setSync, events = [], projects = [] }) {
+export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, pomoConfig, setPomoConfig, sync, setSync, events = [], projects = [], username = '', setUsername, syncStatus, onSyncNow }) {
   const [autostart, setAutostart] = useState(true);
   const [idle, setIdle] = useState(true);
   const [titles, setTitles] = useState(true);
@@ -81,17 +81,24 @@ export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, pomoCon
     if (!urlValid) return;
     setTestStatus('testing');
     try {
-      const base = sync.url.replace(/\/sessions\/?$/, '');
-      const res = await fetch(`${base}/health`, {
-        headers: sync.token ? { Authorization: `Bearer ${sync.token}` } : {},
-        signal: AbortSignal.timeout(5000),
-      });
-      setTestStatus(res.ok ? 'ok' : 'fail');
+      const base = sync.url.replace(/\/(sessions|sync)\/?$/, '');
+      const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) {
+        const data = await res.json();
+        setTestStatus(data.ok ? 'ok' : 'fail');
+      } else {
+        setTestStatus('fail');
+      }
     } catch {
       setTestStatus('fail');
     }
     setTimeout(() => setTestStatus(null), 3000);
   };
+
+  const syncLabel = syncStatus === 'syncing' ? '↻ Sincronizando…'
+    : syncStatus === 'ok'    ? '✓ Sincronizado'
+    : syncStatus === 'error' ? '✗ Erro'
+    : 'Sincronizar agora';
 
   return (
     <div className="scroll" style={{ height: '100%', overflowY: 'auto' }}>
@@ -138,16 +145,26 @@ export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, pomoCon
           </Row>
         </Section>
 
-        <Section label="Server sync">
-          <Row title="Sync tracked time to a server" desc="Push confirmed sessions to your own endpoint. Disabled keeps everything local.">
+        <Section label="Servidor sync">
+          <Row title="Usuário" desc="Identifica suas sessões no servidor. Usado para sincronizar entre computadores.">
+            <input
+              value={username} onChange={(e) => setUsername && setUsername(e.target.value)}
+              placeholder="Ex: marco" spellCheck={false}
+              style={{
+                fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: 'var(--fg-1)',
+                background: 'var(--bg)', border: '1px solid var(--line-2)',
+                borderRadius: 'var(--r-sm)', padding: '7px 11px', outline: 'none', width: 160, textAlign: 'center',
+              }} />
+          </Row>
+          <Row title="Sincronizar sessões" desc="Envia sessões confirmadas e recebe do servidor para manter todos os computadores atualizados.">
             <Switch on={sync.enabled} onClick={() => setSyncK('enabled', !sync.enabled)} />
           </Row>
           <div style={{ padding: '15px 0', borderBottom: '1px solid var(--line-1)', opacity: sync.enabled ? 1 : 0.5, pointerEvents: sync.enabled ? 'auto' : 'none', transition: 'opacity 140ms' }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-1)', marginBottom: 8 }}>Servidor — POST /sessions</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg-2)', marginBottom: 8 }}>Endpoint do servidor</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <input
                 type="url" value={sync.url} onChange={(e) => setSyncK('url', e.target.value)}
-                placeholder="http://localhost:3001/sessions"
+                placeholder="http://servidor-vpn:3001"
                 spellCheck={false}
                 style={{
                   flex: 1, minWidth: 0, fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--fg-1)',
@@ -156,26 +173,27 @@ export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, pomoCon
                 }} />
               <button className="btn btn-ghost btn-sm" onClick={testConnection}
                 disabled={!urlValid || testStatus === 'testing'}
-                style={{ opacity: urlValid ? 1 : 0.4, flex: 'none',
+                style={{ flex: 'none', opacity: urlValid ? 1 : 0.4,
                   color: testStatus === 'ok' ? 'var(--obj-success)' : testStatus === 'fail' ? 'var(--obj-danger)' : undefined }}>
                 {testStatus === 'testing' ? '…' : testStatus === 'ok' ? '✓ OK' : testStatus === 'fail' ? '✗ Falhou' : 'Testar'}
               </button>
             </div>
-            <input
-              type="password" value={sync.token || ''} onChange={(e) => setSyncK('token', e.target.value)}
-              placeholder="Bearer token (opcional)"
-              spellCheck={false}
-              style={{
-                width: '100%', boxSizing: 'border-box',
-                fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--fg-1)',
-                background: 'var(--bg)', border: '1px solid var(--line-2)',
-                borderRadius: 'var(--r-sm)', padding: '8px 11px', outline: 'none',
-              }} />
             <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 7 }}>
-              Docker: <span className="mono" style={{ fontSize: 11 }}>docker compose up -d</span>
-              {' · '}endpoint padrão: <span className="mono" style={{ fontSize: 11 }}>http://localhost:3001/sessions</span>
+              Sem autenticação — acesso via VPN. Docker: <span className="mono" style={{ fontSize: 10.5 }}>docker compose up -d</span>
             </div>
           </div>
+          <Row title="Sincronização" desc="Automática ao confirmar sessões, ou force agora para buscar atualizações de outros computadores.">
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <Seg value={sync.interval} options={['realtime', 'hourly', 'daily']} onChange={(v) => setSyncK('interval', v)} />
+              <button className="btn btn-ghost btn-sm" onClick={onSyncNow}
+                disabled={!sync.enabled || !urlValid || syncStatus === 'syncing'}
+                style={{ flex: 'none',
+                  color: syncStatus === 'ok' ? 'var(--obj-success)' : syncStatus === 'error' ? 'var(--obj-danger)' : undefined,
+                  opacity: sync.enabled && urlValid ? 1 : 0.4 }}>
+                {syncLabel}
+              </button>
+            </div>
+          </Row>
           <Row title="Sync frequency" desc="How often confirmed sessions are pushed upstream." last>
             <Seg value={sync.interval} options={['realtime', 'hourly', 'daily']} onChange={(v) => setSyncK('interval', v)} />
           </Row>

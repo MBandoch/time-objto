@@ -240,10 +240,14 @@ export default function App() {
     return () => mq.removeEventListener('change', on);
   }, []);
 
+  const [username, setUsername] = useState(() => localStorage.getItem('objto_username') || '');
+  const saveUsername = (u) => { setUsername(u); localStorage.setItem('objto_username', u); };
+
   const [projects, setProjects] = useState(PROJECTS);
   const [events, setEvents] = useState(EVENTS);
   const [pomoConfig, setPomoConfig] = useState({ focus: 25, shortBreak: 5, longBreak: 15, cycles: 4 });
-  const [sync, setSync] = useState({ enabled: false, url: '', token: '', interval: 'realtime' });
+  const [sync, setSync] = useState({ enabled: false, url: '', interval: 'realtime' });
+  const [syncStatus, setSyncStatus] = useState(null); // null | 'syncing' | 'ok' | 'error'
   const [showManualEntry, setShowManualEntry] = useState(false);
 
   // Native window tracking (Tauri only — no-op in browser)
@@ -277,55 +281,99 @@ export default function App() {
   syncRef.current = sync;
   const projectsRef = useRef(projects);
   projectsRef.current = projects;
+  const usernameRef = useRef(username);
+  usernameRef.current = username;
+  const eventsRef = useRef(events);
+  eventsRef.current = events;
 
-  const pushToServer = useCallback(async (sessions) => {
+  // Convert a server DB row back into a client event object
+  const normalizeServerSession = (row) => ({
+    id:         row.id,
+    start:      row.start,
+    end:        row.end,
+    dur:        row.dur,
+    app:        row.app || 'chrome',
+    title:      row.title || '',
+    project:    row.project_id || null,
+    confidence: 'high',
+    status:     row.status || 'confirmed',
+    manual:     !!row.manual,
+    fromServer: true,
+  });
+
+  // Bidirectional sync: push local confirmed sessions, receive and merge server sessions
+  const syncWithServer = useCallback(async (localSessions) => {
     const s = syncRef.current;
-    if (!s.enabled || !s.url) return;
-    const payload = sessions.map((ev) => {
-      const p = projectsRef.current.find((pr) => pr.id === ev.project);
-      return { ...ev, projectName: p?.name || '', client: p?.client || '', billable: p?.billable || false, rate: p?.rate || 0 };
-    });
-    try {
-      await fetch(s.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(s.token ? { Authorization: `Bearer ${s.token}` } : {}) },
-        body: JSON.stringify(payload),
+    const user = usernameRef.current;
+    if (!s.enabled || !s.url || !user) return;
+
+    const base = s.url.replace(/\/(sessions|sync)\/?$/, '');
+    const payload = (localSessions || eventsRef.current.filter((e) => e.status === 'confirmed'))
+      .map((ev) => {
+        const p = projectsRef.current.find((pr) => pr.id === ev.project);
+        return { ...ev, projectName: p?.name || '', client: p?.client || '', billable: p?.billable || false, rate: p?.rate || 0 };
       });
-    } catch { /* network error — silently skip, will retry on next confirm */ }
+
+    setSyncStatus('syncing');
+    try {
+      const res = await fetch(`${base}/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user, sessions: payload }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      // Merge server sessions the client doesn't have yet
+      if (Array.isArray(data.sessions) && data.sessions.length) {
+        setEvents((prev) => {
+          const localIds = new Set(prev.map((e) => e.id));
+          const incoming = data.sessions
+            .filter((row) => !localIds.has(row.id))
+            .map(normalizeServerSession);
+          return incoming.length ? [...prev, ...incoming] : prev;
+        });
+      }
+      setSyncStatus('ok');
+      setTimeout(() => setSyncStatus(null), 3000);
+    } catch {
+      setSyncStatus('error');
+      setTimeout(() => setSyncStatus(null), 4000);
+    }
   }, []);
+
+  const maybeSync = (sessions) => {
+    if (syncRef.current.interval === 'realtime') syncWithServer(sessions);
+  };
 
   const assign = (id, project) => setEvents((es) => {
     const next = es.map((e) => e.id === id
       ? { ...e, project, status: project ? 'confirmed' : 'unsorted', confidence: project ? 'high' : e.confidence } : e);
-    if (project && syncRef.current.interval === 'realtime') {
-      const ev = next.find((e) => e.id === id);
-      if (ev?.status === 'confirmed') pushToServer([ev]);
-    }
+    const ev = next.find((e) => e.id === id);
+    if (ev?.status === 'confirmed') maybeSync([ev]);
     return next;
   });
   const confirm = (id) => setEvents((es) => {
     const next = es.map((e) => e.id === id ? { ...e, status: 'confirmed' } : e);
-    if (syncRef.current.interval === 'realtime') {
-      const ev = next.find((e) => e.id === id);
-      if (ev) pushToServer([ev]);
-    }
+    const ev = next.find((e) => e.id === id);
+    if (ev) maybeSync([ev]);
     return next;
   });
   const confirmAll = () => setEvents((es) => {
     const next = es.map((e) => e.status === 'suggested' ? { ...e, status: 'confirmed' } : e);
-    if (syncRef.current.interval === 'realtime') pushToServer(next.filter((e) => e.status === 'confirmed'));
+    maybeSync(next.filter((e) => e.status === 'confirmed'));
     return next;
   });
   const bulkAssign = (ids, project) => setEvents((es) => es.map((e) => ids.includes(e.id)
     ? { ...e, project, status: project ? 'confirmed' : 'unsorted', confidence: project ? 'high' : e.confidence } : e));
   const bulkConfirm = (ids) => setEvents((es) => {
     const next = es.map((e) => ids.includes(e.id) ? { ...e, status: 'confirmed' } : e);
-    if (syncRef.current.interval === 'realtime') pushToServer(next.filter((e) => ids.includes(e.id)));
+    maybeSync(next.filter((e) => ids.includes(e.id)));
     return next;
   });
   const addManualEntry = (ev) => {
     setEvents((es) => [...es, ev]);
-    if (syncRef.current.interval === 'realtime') pushToServer([ev]);
+    maybeSync([ev]);
   };
   const actions = { assign, confirm, confirmAll, bulkAssign, bulkConfirm, addManualEntry, openManualEntry: () => setShowManualEntry(true) };
 
@@ -386,12 +434,12 @@ export default function App() {
           {view === 'review'    && <Review events={events} actions={actions} />}
           {view === 'dashboard' && <Dashboard />}
           {view === 'projects'  && <Projects projects={projects} setProjects={setProjects} />}
-          {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} onAddManual={() => setShowManualEntry(true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} events={events} projects={projects} />}
+          {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} onAddManual={() => setShowManualEntry(true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} events={events} projects={projects} username={username} setUsername={saveUsername} syncStatus={syncStatus} onSyncNow={() => syncWithServer()} />}
           {view === 'widget'    && <Widget />}
         </main>
       </div>
 
-      {t.onboarding && <Onboarding onClose={() => setTweak('onboarding', false)} />}
+      {t.onboarding && <Onboarding initialUsername={username} onClose={(u) => { if (u) saveUsername(u); setTweak('onboarding', false); }} />}
       {showManualEntry && <ManualEntryModal projects={projects} onClose={() => setShowManualEntry(false)} onSave={addManualEntry} />}
 
       <TweaksPanel>
