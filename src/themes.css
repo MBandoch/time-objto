@@ -1,0 +1,62 @@
+/* ============================================================
+   Brand skins — Cursor & Nike (OBJ_TO is the base in app.css)
+   ============================================================ */
+
+/* ---------------------------------------------------------- CURSOR */
+.app.brand-cursor {
+  --bg: #f7f7f4; --bg-elev: #ffffff; --bg-sunken: #efeee8; --bg-inverse: #26251e;
+  --fg-1: #26251e; --fg-2: #5a5852; --fg-3: #807d72;
+  --line-1: #e6e5e0; --line-2: #cfcdc4; --line-strong: #a09c92;
+
+  --accent: #f54e00; --accent-deep: #d04200; --accent-on: #ffffff;
+
+  --obj-success: #1f8a65; --obj-amber: #c08532; --obj-danger: #cf2d56; --obj-gray: #807d72;
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --disp-weight: 400; --disp-ls: -0.025em; --disp-transform: none;
+
+  --r-btn: 8px; --r-card: 12px; --r-chip: 999px;
+  --shadow-1: none; --shadow-2: 0 1px 2px rgba(38,37,30,0.05); --shadow-3: 0 10px 40px rgba(38,37,30,0.10);
+
+  --p-paulista: #9fbbe0; --p-brand: #dfa88f; --p-site: #c08532; --p-vega: #9fc9a2; --p-admin: #c0a8dd;
+}
+.app.brand-cursor.dark {
+  --bg: #1b1b19; --bg-elev: #232320; --bg-sunken: #151513; --bg-inverse: #0f0f0d;
+  --fg-1: #f3f1ea; --fg-2: #b6b3a8; --fg-3: #7d7a70;
+  --line-1: rgba(243,241,234,0.10); --line-2: rgba(243,241,234,0.18); --line-strong: rgba(243,241,234,0.34);
+  --accent: #ff5b14; --accent-deep: #f54e00; --accent-on: #1b1b19;
+  --shadow-2: 0 1px 2px rgba(0,0,0,0.4); --shadow-3: 0 12px 48px rgba(0,0,0,0.55);
+}
+
+/* ---------------------------------------------------------- NIKE */
+.app.brand-nike {
+  --bg: #ffffff; --bg-elev: #ffffff; --bg-sunken: #f5f5f5; --bg-inverse: #111111;
+  --fg-1: #111111; --fg-2: #4b4b4d; --fg-3: #707072;
+  --line-1: #e5e5e5; --line-2: #cacacb; --line-strong: #707072;
+
+  --accent: #111111; --accent-deep: #000000; --accent-on: #ffffff;
+
+  --obj-success: #007d48; --obj-amber: #707072; --obj-danger: #d30005; --obj-gray: #707072;
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Bebas Neue', 'Inter', sans-serif;
+  --font-mono: 'Inter', system-ui, sans-serif;
+  --disp-weight: 400; --disp-ls: 0; --disp-transform: uppercase;
+
+  --r-btn: 999px; --r-card: 0px; --r-chip: 999px;
+  --shadow-1: none; --shadow-2: none; --shadow-3: 0 10px 40px rgba(17,17,17,0.14);
+
+  --p-paulista: #0a7281; --p-brand: #ed1aa0; --p-site: #1151ff; --p-vega: #007d48; --p-admin: #8b6fe0;
+}
+.app.brand-nike.dark {
+  --bg: #111111; --bg-elev: #1a1a1a; --bg-sunken: #242424; --bg-inverse: #000000;
+  --fg-1: #ffffff; --fg-2: #b6b6b8; --fg-3: #9e9ea0;
+  --line-1: rgba(255,255,255,0.12); --line-2: rgba(255,255,255,0.22); --line-strong: rgba(255,255,255,0.42);
+  --accent: #ffffff; --accent-deep: #e5e5e5; --accent-on: #111111;
+  --shadow-3: 0 12px 48px rgba(0,0,0,0.6);
+}
+
+.app.brand-nike .disp { line-height: 0.92; }
+.app.brand-cursor .mono, .app.brand-nike .mono { font-variant-numeric: tabular-nums; }
