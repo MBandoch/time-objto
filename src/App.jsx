@@ -1,18 +1,18 @@
 import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
-import { PROJECTS, EVENTS, projById, RULE_TYPES, fmt } from './data.js';
+import { PROJECTS, EVENTS, RULE_TYPES, fmt } from './data.js';
 import { PomodoroBar } from './components/PomodoroTimer.jsx';
 import { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakRadio } from './components/TweaksPanel.jsx';
 import { MainView } from './views/MainView.jsx';
 
-const Dashboard       = lazy(() => import('./views/Dashboard.jsx').then(m => ({ default: m.Dashboard })));
-const Projects        = lazy(() => import('./views/Projects.jsx').then(m => ({ default: m.Projects })));
-const Review          = lazy(() => import('./views/Review.jsx').then(m => ({ default: m.Review })));
-const Settings        = lazy(() => import('./views/Settings.jsx').then(m => ({ default: m.Settings })));
-const Widget          = lazy(() => import('./views/Widget.jsx').then(m => ({ default: m.Widget })));
-const Onboarding      = lazy(() => import('./views/Onboarding.jsx').then(m => ({ default: m.Onboarding })));
+const Dashboard        = lazy(() => import('./views/Dashboard.jsx').then(m => ({ default: m.Dashboard })));
+const Projects         = lazy(() => import('./views/Projects.jsx').then(m => ({ default: m.Projects })));
+const Review           = lazy(() => import('./views/Review.jsx').then(m => ({ default: m.Review })));
+const Settings         = lazy(() => import('./views/Settings.jsx').then(m => ({ default: m.Settings })));
+const Widget           = lazy(() => import('./views/Widget.jsx').then(m => ({ default: m.Widget })));
+const Onboarding       = lazy(() => import('./views/Onboarding.jsx').then(m => ({ default: m.Onboarding })));
 const ManualEntryModal = lazy(() => import('./components/ManualEntryModal.jsx').then(m => ({ default: m.ManualEntryModal })));
 
-// ---- inline icons ----
+// ---- icons ----
 const Ico = ({ d, size = 19 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
 );
@@ -33,38 +33,30 @@ function Wordmark({ tone = 'ink' }) {
   );
 }
 
-function TitleBar({ chrome }) {
-  if (!chrome) return null;
-  const ctrl = (label, danger) => (
-    <button title={label} style={{
-      width: 46, height: 34, border: 'none', background: 'transparent', cursor: 'pointer',
-      display: 'grid', placeItems: 'center', color: 'var(--fg-2)', transition: '100ms',
-    }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = danger ? '#e54b4b' : 'var(--bg-sunken)'; if (danger) e.currentTarget.style.color = '#fff'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--fg-2)'; }}>
-      {label === 'min' && <svg width="11" height="11" viewBox="0 0 11 11"><line x1="1" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1" /></svg>}
-      {label === 'max' && <svg width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="none" stroke="currentColor" strokeWidth="1" /></svg>}
-      {label === 'close' && <svg width="11" height="11" viewBox="0 0 11 11"><line x1="1" y1="1" x2="10" y2="10" stroke="currentColor" strokeWidth="1" /><line x1="10" y1="1" x2="1" y2="10" stroke="currentColor" strokeWidth="1" /></svg>}
-    </button>
-  );
-  return (
-    <div style={{ height: 34, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-elev)', borderBottom: '1px solid var(--line-1)', paddingLeft: 14, userSelect: 'none' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Wordmark />
-        <span style={{ width: 1, height: 14, background: 'var(--line-2)' }} />
-        <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>Time Tracker</span>
-      </div>
-      <div style={{ display: 'flex' }}>{ctrl('min')}{ctrl('max')}{ctrl('close', true)}</div>
-    </div>
-  );
+function extractAppName(title) {
+  const parts = title.split(/ [—–|] | - /);
+  return parts[parts.length - 1].trim() || title;
 }
 
-function ActivityBody({ onPopOut }) {
-  const [sec, setSec] = useState(43 * 60 + 12);
-  useEffect(() => { const t = setInterval(() => setSec((s) => s + 1), 1000); return () => clearInterval(t); }, []);
-  const [running, setRunning] = useState(true);
-  const p = projById['paulista'];
-  const hh = Math.floor(sec / 3600), mm = Math.floor((sec % 3600) / 60), ss = sec % 60;
+// ---- Live tracking sidebar card ----
+const LIVE_INIT = { running: false, startedAt: null, elapsed: 0, app: '', title: '', project: null };
+
+function ActivityBody({ onPopOut, liveTracking, projects, onToggle, onDiscard }) {
+  const { running, elapsed, app, title, project: projectId } = liveTracking;
+  const p = projects.find(pr => pr.id === projectId);
+  const hh = Math.floor(elapsed / 3600), mm = Math.floor((elapsed % 3600) / 60), ss = elapsed % 60;
+
+  if (!running && elapsed === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '4px 0' }}>
+        <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 10 }}>Nenhum rastreamento ativo</div>
+        <button onClick={onToggle} className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
+          ▶ Iniciar
+        </button>
+      </div>
+    );
+  }
+
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9 }}>
@@ -72,37 +64,60 @@ function ActivityBody({ onPopOut }) {
           <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: running ? 'var(--obj-success)' : 'var(--fg-3)' }} />
           {running && <span style={{ position: 'absolute', inset: -3, borderRadius: '50%', border: '1px solid var(--obj-success)', animation: 'ping 1.6s ease-out infinite' }} />}
         </span>
-        <span className="eyebrow" style={{ color: running ? 'var(--obj-success)' : 'var(--fg-3)', fontSize: 9.5 }}>{running ? 'Tracking now' : 'Paused'}</span>
-        <button className="btn-icon" onClick={onPopOut} title="Pop out mini widget" style={{ marginLeft: 'auto', padding: 4 }}>
+        <span className="eyebrow" style={{ color: running ? 'var(--obj-success)' : 'var(--fg-3)', fontSize: 9.5 }}>
+          {running ? 'Rastreando' : 'Pausado'}
+        </span>
+        <button className="btn-icon" onClick={onPopOut} title="Abrir mini widget" style={{ marginLeft: 'auto', padding: 4 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>
         </button>
         <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-1)' }}>{fmt.pad(hh)}:{fmt.pad(mm)}:{fmt.pad(ss)}</span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
-        <span style={{ width: 7, height: 7, borderRadius: '50%', background: p.color, flex: 'none' }} />
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--fg-1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
+
+      {p ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: p.color, flex: 'none' }} />
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--fg-1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 4 }}>Sem projeto associado</div>
+      )}
+
+      {(app || title) && (
+        <div className="mono" style={{ fontSize: 10.5, color: 'var(--fg-3)', marginBottom: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {[app, title && title !== app && title].filter(Boolean).join(' · ')}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button onClick={onToggle} className="btn btn-ghost btn-sm" style={{ flex: 1, justifyContent: 'center' }}>
+          {running ? '❚❚ Pausar' : '▶ Retomar'}
+        </button>
+        <button onClick={onDiscard} className="btn btn-ghost btn-sm" title="Parar e descartar"
+          style={{ flex: 'none', color: 'var(--obj-danger)', borderColor: 'var(--obj-danger)' }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2" />
+          </svg>
+        </button>
       </div>
-      <div className="mono" style={{ fontSize: 10.5, color: 'var(--fg-3)', marginBottom: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>SketchUp · Paulista1306_facade_v4.skp</div>
-      <button onClick={() => setRunning((r) => !r)} className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
-        {running ? '❚❚ Pause' : '▶ Resume'}
-      </button>
     </>
   );
 }
 
-function NowTracking({ onPopOut, pomo, onPomoToggle, onPomoStartStop, onPomoSkip, onPomoReset, pomoConfig, collapsed, onExpand }) {
+function NowTracking({ onPopOut, pomo, onPomoToggle, onPomoStartStop, onPomoSkip, onPomoReset, pomoConfig, liveTracking, projects, onToggleTracking, onDiscardTracking, collapsed, onExpand }) {
   if (collapsed) {
     return (
       <div style={{ margin: '10px 0 12px', display: 'flex', justifyContent: 'center' }}>
-        <button onClick={onExpand} title="Tracking — expand sidebar" style={{
+        <button onClick={onExpand} title="Rastreamento — expandir barra lateral" style={{
           position: 'relative', width: 44, height: 44, display: 'grid', placeItems: 'center', cursor: 'pointer',
           background: 'var(--bg-sunken)', border: '1px solid var(--line-1)', borderRadius: 'var(--r-md)', color: 'var(--fg-2)',
         }}>
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
-          <span style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8 }}>
-            <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'var(--obj-success)' }} />
-            <span style={{ position: 'absolute', inset: -3, borderRadius: '50%', border: '1px solid var(--obj-success)', animation: 'ping 1.6s ease-out infinite' }} />
-          </span>
+          {liveTracking.running && (
+            <span style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8 }}>
+              <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'var(--obj-success)' }} />
+              <span style={{ position: 'absolute', inset: -3, borderRadius: '50%', border: '1px solid var(--obj-success)', animation: 'ping 1.6s ease-out infinite' }} />
+            </span>
+          )}
         </button>
       </div>
     );
@@ -112,24 +127,24 @@ function NowTracking({ onPopOut, pomo, onPomoToggle, onPomoStartStop, onPomoSkip
     <div style={{ margin: 12, borderRadius: 'var(--r-md)', background: 'var(--bg-sunken)', border: '1px solid var(--line-1)', overflow: 'hidden' }}>
       <PomodoroBar
         config={pomoConfig}
-        active={pomo.active}
-        phase={pomo.phase}
-        secondsLeft={pomo.secondsLeft}
-        done={pomo.done}
-        running={pomo.running}
-        onToggle={onPomoToggle}
-        onStartStop={onPomoStartStop}
-        onSkip={onPomoSkip}
-        onReset={onPomoReset}
+        active={pomo.active} phase={pomo.phase} secondsLeft={pomo.secondsLeft}
+        done={pomo.done} running={pomo.running}
+        onToggle={onPomoToggle} onStartStop={onPomoStartStop} onSkip={onPomoSkip} onReset={onPomoReset}
       />
       <div style={{ padding: 12 }}>
-        <ActivityBody onPopOut={onPopOut} />
+        <ActivityBody
+          onPopOut={onPopOut}
+          liveTracking={liveTracking}
+          projects={projects}
+          onToggle={onToggleTracking}
+          onDiscard={onDiscardTracking}
+        />
       </div>
     </div>
   );
 }
 
-function Sidebar({ nav, view, onNavigate, collapsed, onToggleCollapse, chrome, pomoConfig, pomo, onPomoToggle, onPomoStartStop, onPomoSkip, onPomoReset, onPopOut, isMobile, onCloseDrawer }) {
+function Sidebar({ nav, view, onNavigate, collapsed, onToggleCollapse, pomoConfig, pomo, onPomoToggle, onPomoStartStop, onPomoSkip, onPomoReset, liveTracking, projects, onToggleTracking, onDiscardTracking, onPopOut, isMobile, onCloseDrawer }) {
   return (
     <>
       <div style={{
@@ -137,13 +152,13 @@ function Sidebar({ nav, view, onNavigate, collapsed, onToggleCollapse, chrome, p
         justifyContent: collapsed ? 'center' : 'space-between',
         padding: collapsed ? '14px 0 4px' : '14px 14px 4px',
       }}>
-        {!collapsed && (!chrome || isMobile) && <Wordmark />}
+        {!collapsed && <Wordmark />}
         {isMobile ? (
-          <button className="btn-icon" title="Close menu" onClick={onCloseDrawer}>
+          <button className="btn-icon" title="Fechar menu" onClick={onCloseDrawer}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
           </button>
         ) : (
-          <button className="btn-icon" title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={onToggleCollapse} style={{ border: '1px solid var(--line-1)' }}>
+          <button className="btn-icon" title={collapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'} onClick={onToggleCollapse} style={{ border: '1px solid var(--line-1)' }}>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" style={{ transform: collapsed ? 'scaleX(-1)' : 'none', transition: 'transform 180ms ease-out' }}>
               <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /><path d="M15.5 9.5 13 12l2.5 2.5" />
             </svg>
@@ -179,14 +194,11 @@ function Sidebar({ nav, view, onNavigate, collapsed, onToggleCollapse, chrome, p
       <div style={{ marginTop: 'auto' }}>
         <NowTracking
           onPopOut={onPopOut}
-          pomo={pomo}
-          onPomoToggle={onPomoToggle}
-          onPomoStartStop={onPomoStartStop}
-          onPomoSkip={onPomoSkip}
-          onPomoReset={onPomoReset}
-          pomoConfig={pomoConfig}
-          collapsed={collapsed}
-          onExpand={onToggleCollapse}
+          pomo={pomo} onPomoToggle={onPomoToggle} onPomoStartStop={onPomoStartStop}
+          onPomoSkip={onPomoSkip} onPomoReset={onPomoReset} pomoConfig={pomoConfig}
+          liveTracking={liveTracking} projects={projects}
+          onToggleTracking={onToggleTracking} onDiscardTracking={onDiscardTracking}
+          collapsed={collapsed} onExpand={onToggleCollapse}
         />
       </div>
     </>
@@ -244,13 +256,15 @@ function matchTitleToProject(title, projects) {
   return null;
 }
 
+// First run: show onboarding if setup hasn't been completed
+const isFirstRun = !localStorage.getItem('objto_setup_done');
+
 const TWEAK_DEFAULTS = {
   brand: 'objto',
   dark: false,
   accent: 'navy',
   mode: 'timeline',
-  chrome: true,
-  onboarding: false,
+  onboarding: isFirstRun,
 };
 
 const POMO_INIT = { active: false, running: false, phase: 'focus', secondsLeft: 25 * 60, done: 0, bgFlash: false, showPrompt: false };
@@ -281,139 +295,155 @@ export default function App() {
   const [sync, setSync] = useState({ enabled: false, url: '', interval: 'realtime' });
   const [syncStatus, setSyncStatus] = useState(null);
   const [showManualEntry, setShowManualEntry] = useState(false);
+  const [monitorAll, setMonitorAll] = useState(false);
 
-  // Reset secondsLeft when config.focus changes and pomo is idle
+  // Live tracking state — paused by default (item 5)
+  const [liveTracking, setLiveTracking] = useState(LIVE_INIT);
+
+  // Tracking tick
   useEffect(() => {
-    setPomo((p) => {
-      if (!p.active && !p.running) return { ...p, secondsLeft: pomoConfig.focus * 60 };
-      return p;
-    });
+    if (!liveTracking.running) return;
+    const id = setInterval(() => setLiveTracking(lt => ({ ...lt, elapsed: lt.elapsed + 1 })), 1000);
+    return () => clearInterval(id);
+  }, [liveTracking.running]);
+
+  const toggleTracking = () => setLiveTracking(lt => ({
+    ...lt, running: !lt.running, startedAt: lt.startedAt ?? Date.now(),
+  }));
+
+  const discardTracking = () => setLiveTracking(LIVE_INIT);
+
+  // Pomodoro config sync
+  useEffect(() => {
+    setPomo(p => (!p.active && !p.running) ? { ...p, secondsLeft: pomoConfig.focus * 60 } : p);
   }, [pomoConfig.focus]);
 
-  // Countdown tick
+  // Pomodoro countdown
   useEffect(() => {
     if (!pomo.active || !pomo.running) return;
     const id = setInterval(() => {
-      setPomo((p) => {
+      setPomo(p => {
         if (p.secondsLeft > 1) return { ...p, secondsLeft: p.secondsLeft - 1 };
-        // Phase just reached zero
         if (p.phase === 'focus') {
           const nextDone = p.done + 1;
           const nextPhase = nextDone % pomoConfig.cycles === 0 ? 'long' : 'short';
           const nextSec = (nextPhase === 'long' ? pomoConfig.longBreak : pomoConfig.shortBreak) * 60;
           return { ...p, running: false, bgFlash: true, phase: nextPhase, secondsLeft: nextSec, done: nextDone };
-        } else {
-          return { ...p, running: false, secondsLeft: 0, showPrompt: true };
         }
+        return { ...p, running: false, secondsLeft: 0, showPrompt: true };
       });
     }, 1000);
     return () => clearInterval(id);
   }, [pomo.active, pomo.running, pomoConfig]);
 
-  // Auto-start break after the brief blue flash
   useEffect(() => {
     if (!pomo.bgFlash) return;
-    const tid = setTimeout(() => {
-      setPomo((p) => ({ ...p, bgFlash: false, running: true }));
-    }, 1500);
+    const tid = setTimeout(() => setPomo(p => ({ ...p, bgFlash: false, running: true })), 1500);
     return () => clearTimeout(tid);
   }, [pomo.bgFlash]);
 
-  // Pomo handlers
-  const pomoToggle = () => setPomo((p) => {
-    if (p.active) return { ...POMO_INIT, secondsLeft: pomoConfig.focus * 60 };
-    return { ...p, active: true };
-  });
-  const pomoStartStop = () => setPomo((p) => ({ ...p, running: !p.running }));
-  const pomoSkip = () => setPomo((p) => {
+  const pomoToggle    = () => setPomo(p => p.active ? { ...POMO_INIT, secondsLeft: pomoConfig.focus * 60 } : { ...p, active: true });
+  const pomoStartStop = () => setPomo(p => ({ ...p, running: !p.running }));
+  const pomoSkip      = () => setPomo(p => {
     let nextDone = p.done, nextPhase;
-    if (p.phase === 'focus') {
-      nextDone = p.done + 1;
-      nextPhase = nextDone % pomoConfig.cycles === 0 ? 'long' : 'short';
-    } else {
-      nextPhase = 'focus';
-    }
+    if (p.phase === 'focus') { nextDone = p.done + 1; nextPhase = nextDone % pomoConfig.cycles === 0 ? 'long' : 'short'; }
+    else { nextPhase = 'focus'; }
     const nextSec = (nextPhase === 'focus' ? pomoConfig.focus : nextPhase === 'long' ? pomoConfig.longBreak : pomoConfig.shortBreak) * 60;
     return { ...p, phase: nextPhase, secondsLeft: nextSec, done: nextDone, running: false, bgFlash: false, showPrompt: false };
   });
-  const pomoReset = () => setPomo({ active: true, running: false, phase: 'focus', secondsLeft: pomoConfig.focus * 60, done: 0, bgFlash: false, showPrompt: false });
+  const pomoReset      = () => setPomo({ active: true, running: false, phase: 'focus', secondsLeft: pomoConfig.focus * 60, done: 0, bgFlash: false, showPrompt: false });
   const pomoNewSession = () => setPomo({ active: true, running: true, phase: 'focus', secondsLeft: pomoConfig.focus * 60, done: 0, bgFlash: false, showPrompt: false });
   const pomoEndSession = () => setPomo({ ...POMO_INIT, secondsLeft: pomoConfig.focus * 60 });
 
-  // Native window tracking (Tauri only — no-op in browser)
-  const activeWindowRef = useRef('');
-  const idleRef = useRef(0);
+  // Refs for polling closures
+  const activeWindowRef  = useRef('');
+  const idleRef          = useRef(0);
+  const projectsRef      = useRef(projects);
+  projectsRef.current    = projects;
+  const monitorAllRef    = useRef(monitorAll);
+  monitorAllRef.current  = monitorAll;
+  const liveTrackingRef  = useRef(liveTracking);
+  liveTrackingRef.current = liveTracking;
+
+  // Native window tracking via Tauri (item 6 — auto-session on window change)
   useEffect(() => {
     if (typeof window.__TAURI__ === 'undefined') return;
     const poll = async () => {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         const [title, idle] = await Promise.all([invoke('get_active_window'), invoke('get_idle_seconds')]);
-        activeWindowRef.current = title;
+        if (!title) return;
         idleRef.current = idle;
-        if (title && idle < 120) {
-          const matched = matchTitleToProject(title, projects);
-          if (matched) window.__ACTIVE_PROJECT__ = matched;
+
+        const prevTitle = activeWindowRef.current;
+        activeWindowRef.current = title;
+        const titleChanged = title !== prevTitle && prevTitle;
+        const matched = matchTitleToProject(title, projectsRef.current);
+
+        if (monitorAllRef.current && titleChanged) {
+          const lt = liveTrackingRef.current;
+          if (lt.running && lt.elapsed >= 30) {
+            const now = Date.now();
+            setEvents(es => [...es, {
+              id: crypto.randomUUID(),
+              start: Math.round((now - lt.elapsed * 1000) / 1000),
+              end: Math.round(now / 1000),
+              dur: Math.round(lt.elapsed / 60),
+              app: lt.app || extractAppName(prevTitle),
+              title: lt.title || prevTitle,
+              project: lt.project,
+              confidence: lt.project ? 'high' : 'low',
+              status: 'suggested',
+            }]);
+          }
+          setLiveTracking({ running: idle < 120, startedAt: Date.now(), elapsed: 0, app: extractAppName(title), title, project: matched });
+        } else if (matched && title !== prevTitle) {
+          setLiveTracking(lt => ({ ...lt, project: matched, app: extractAppName(title), title }));
         }
-      } catch { /* not in Tauri */ }
+      } catch { /* não está no Tauri */ }
     };
     poll();
-    const t = setInterval(poll, 4000);
-    return () => clearInterval(t);
+    const interval = setInterval(poll, 4000);
+    return () => clearInterval(interval);
   }, [projects]);
 
   // Server sync
-  const syncRef = useRef(sync);
-  syncRef.current = sync;
-  const projectsRef = useRef(projects);
-  projectsRef.current = projects;
-  const usernameRef = useRef(username);
+  const syncRef      = useRef(sync);
+  syncRef.current    = sync;
+  const usernameRef  = useRef(username);
   usernameRef.current = username;
-  const eventsRef = useRef(events);
-  eventsRef.current = events;
+  const eventsRef    = useRef(events);
+  eventsRef.current  = events;
 
   const normalizeServerSession = (row) => ({
-    id:         row.id,
-    start:      row.start,
-    end:        row.end,
-    dur:        row.dur,
-    app:        row.app || 'chrome',
-    title:      row.title || '',
-    project:    row.project_id || null,
-    confidence: 'high',
-    status:     row.status || 'confirmed',
-    manual:     !!row.manual,
-    fromServer: true,
+    id: row.id, start: row.start, end: row.end, dur: row.dur,
+    app: row.app || 'chrome', title: row.title || '',
+    project: row.project_id || null, confidence: 'high',
+    status: row.status || 'confirmed', manual: !!row.manual, fromServer: true,
   });
 
   const syncWithServer = useCallback(async (localSessions) => {
     const s = syncRef.current;
     const user = usernameRef.current;
     if (!s.enabled || !s.url || !user) return;
-
     const base = s.url.replace(/\/(sessions|sync)\/?$/, '');
-    const payload = (localSessions || eventsRef.current.filter((e) => e.status === 'confirmed'))
-      .map((ev) => {
-        const p = projectsRef.current.find((pr) => pr.id === ev.project);
+    const payload = (localSessions || eventsRef.current.filter(e => e.status === 'confirmed'))
+      .map(ev => {
+        const p = projectsRef.current.find(pr => pr.id === ev.project);
         return { ...ev, projectName: p?.name || '', client: p?.client || '', billable: p?.billable || false, rate: p?.rate || 0 };
       });
-
     setSyncStatus('syncing');
     try {
       const res = await fetch(`${base}/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: user, sessions: payload }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-
       if (Array.isArray(data.sessions) && data.sessions.length) {
-        setEvents((prev) => {
-          const localIds = new Set(prev.map((e) => e.id));
-          const incoming = data.sessions
-            .filter((row) => !localIds.has(row.id))
-            .map(normalizeServerSession);
+        setEvents(prev => {
+          const localIds = new Set(prev.map(e => e.id));
+          const incoming = data.sessions.filter(row => !localIds.has(row.id)).map(normalizeServerSession);
           return incoming.length ? [...prev, ...incoming] : prev;
         });
       }
@@ -429,72 +459,61 @@ export default function App() {
     if (syncRef.current.interval === 'realtime') syncWithServer(sessions);
   };
 
-  const assign = (id, project) => setEvents((es) => {
-    const next = es.map((e) => e.id === id
-      ? { ...e, project, status: project ? 'confirmed' : 'unsorted', confidence: project ? 'high' : e.confidence } : e);
-    const ev = next.find((e) => e.id === id);
+  const assign = (id, project) => setEvents(es => {
+    const next = es.map(e => e.id === id ? { ...e, project, status: project ? 'confirmed' : 'unsorted', confidence: project ? 'high' : e.confidence } : e);
+    const ev = next.find(e => e.id === id);
     if (ev?.status === 'confirmed') maybeSync([ev]);
     return next;
   });
-  const confirm = (id) => setEvents((es) => {
-    const next = es.map((e) => e.id === id ? { ...e, status: 'confirmed' } : e);
-    const ev = next.find((e) => e.id === id);
-    if (ev) maybeSync([ev]);
-    return next;
-  });
-  const confirmAll = () => setEvents((es) => {
-    const next = es.map((e) => e.status === 'suggested' ? { ...e, status: 'confirmed' } : e);
-    maybeSync(next.filter((e) => e.status === 'confirmed'));
-    return next;
-  });
-  const bulkAssign = (ids, project) => setEvents((es) => es.map((e) => ids.includes(e.id)
-    ? { ...e, project, status: project ? 'confirmed' : 'unsorted', confidence: project ? 'high' : e.confidence } : e));
-  const bulkConfirm = (ids) => setEvents((es) => {
-    const next = es.map((e) => ids.includes(e.id) ? { ...e, status: 'confirmed' } : e);
-    maybeSync(next.filter((e) => ids.includes(e.id)));
-    return next;
-  });
-  const addManualEntry = (ev) => {
-    setEvents((es) => [...es, ev]);
-    maybeSync([ev]);
-  };
+  const confirm    = (id) => setEvents(es => { const next = es.map(e => e.id === id ? { ...e, status: 'confirmed' } : e); const ev = next.find(e => e.id === id); if (ev) maybeSync([ev]); return next; });
+  const confirmAll = () => setEvents(es => { const next = es.map(e => e.status === 'suggested' ? { ...e, status: 'confirmed' } : e); maybeSync(next.filter(e => e.status === 'confirmed')); return next; });
+  const bulkAssign = (ids, project) => setEvents(es => es.map(e => ids.includes(e.id) ? { ...e, project, status: project ? 'confirmed' : 'unsorted', confidence: project ? 'high' : e.confidence } : e));
+  const bulkConfirm = (ids) => setEvents(es => { const next = es.map(e => ids.includes(e.id) ? { ...e, status: 'confirmed' } : e); maybeSync(next.filter(e => ids.includes(e.id))); return next; });
+  const addManualEntry = (ev) => { setEvents(es => [...es, ev]); maybeSync([ev]); };
   const actions = { assign, confirm, confirmAll, bulkAssign, bulkConfirm, addManualEntry, openManualEntry: () => setShowManualEntry(true) };
+
+  const projByIdMap = useMemo(() => Object.fromEntries(projects.map(p => [p.id, p])), [projects]);
 
   const stats = useMemo(() => {
     let total = 0, billable = 0, review = 0;
     for (const e of events) {
       total += e.dur;
-      if (e.project && projById[e.project]?.billable) billable += e.dur;
+      if (e.project && projByIdMap[e.project]?.billable) billable += e.dur;
       if (e.status !== 'confirmed') review += 1;
     }
     return { total, billable, review };
-  }, [events]);
+  }, [events, projByIdMap]);
 
   const nav = [
-    { id: 'today',     label: 'Today',     icon: 'today' },
-    { id: 'review',    label: 'Review',    icon: 'review',    badge: stats.review },
-    { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-    { id: 'projects',  label: 'Projects',  icon: 'projects' },
-    { id: 'settings',  label: 'Settings',  icon: 'settings' },
+    { id: 'today',     label: 'Hoje',          icon: 'today' },
+    { id: 'review',    label: 'Revisão',       icon: 'review',    badge: stats.review },
+    { id: 'dashboard', label: 'Dashboard',     icon: 'dashboard' },
+    { id: 'projects',  label: 'Projetos',      icon: 'projects' },
+    { id: 'settings',  label: 'Configurações', icon: 'settings' },
   ];
+
+  // Onboarding: on close, persist username + optional new project + mark setup done
+  const handleOnboardingClose = (newUsername, newProject) => {
+    if (newUsername) saveUsername(newUsername);
+    if (newProject) setProjects(ps => [...ps, newProject]);
+    localStorage.setItem('objto_setup_done', '1');
+    setTweak('onboarding', false);
+  };
 
   const brandClass = t.brand && t.brand !== 'objto' ? ' brand-' + t.brand : '';
   const sidebarCollapsed = collapsed && !isMobile;
-  const currentLabel = (nav.find((n) => n.id === view) || {}).label || '';
+  const currentLabel = (nav.find(n => n.id === view) || {}).label || '';
 
-  // Pomodoro background: terracotta for focus, blue for bgFlash and break
   const pomoFocusBg = pomo.active && pomo.phase === 'focus' && !pomo.bgFlash;
   const pomoBreakBg = pomo.active && !pomo.bgFlash && (pomo.phase === 'short' || pomo.phase === 'long');
 
   return (
     <div className={'app' + (t.dark ? ' dark' : '') + brandClass} data-accent={t.accent} style={{
-      ...(isMobile
-        ? { width: '100vw', height: '100dvh', margin: 0, borderRadius: 0, border: 'none', boxShadow: 'none' }
-        : { width: 'min(96vw, 1340px)', height: 'min(94vh, 880px)', margin: '3vh auto', borderRadius: 9, border: '1px solid var(--line-2)', boxShadow: 'var(--shadow-3)' }),
+      width: '100vw', height: '100dvh', margin: 0, borderRadius: 0, border: 'none', boxShadow: 'none',
       overflow: 'hidden', background: 'var(--bg)', color: 'var(--fg-1)',
       display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-sans)', position: 'relative',
     }}>
-      {isMobile ? <MobileBar onMenu={() => setDrawerOpen(true)} title={currentLabel} /> : <TitleBar chrome={t.chrome} />}
+      {isMobile && <MobileBar onMenu={() => setDrawerOpen(true)} title={currentLabel} />}
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', position: 'relative' }}>
         {isMobile && drawerOpen && (
@@ -510,44 +529,32 @@ export default function App() {
           <Sidebar
             nav={nav} view={view}
             onNavigate={(id) => { setView(id); if (isMobile) setDrawerOpen(false); }}
-            collapsed={sidebarCollapsed} onToggleCollapse={() => setCollapsed((c) => !c)}
-            chrome={t.chrome}
-            pomoConfig={pomoConfig}
-            pomo={pomo}
-            onPomoToggle={pomoToggle}
-            onPomoStartStop={pomoStartStop}
-            onPomoSkip={pomoSkip}
-            onPomoReset={pomoReset}
+            collapsed={sidebarCollapsed} onToggleCollapse={() => setCollapsed(c => !c)}
+            pomoConfig={pomoConfig} pomo={pomo}
+            onPomoToggle={pomoToggle} onPomoStartStop={pomoStartStop} onPomoSkip={pomoSkip} onPomoReset={pomoReset}
+            liveTracking={liveTracking} projects={projects}
+            onToggleTracking={toggleTracking} onDiscardTracking={discardTracking}
             onPopOut={() => setView('widget')}
             isMobile={isMobile} onCloseDrawer={() => setDrawerOpen(false)}
           />
         </nav>
 
         <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--bg)', position: 'relative', overflow: 'hidden' }}>
-          {/* Pomodoro background overlays — sit behind content via z-index */}
           {pomo.active && (
             <>
-              <div className="pomo-bg-overlay" style={{
-                background: 'rgba(184,106,75,0.07)',
-                opacity: pomoFocusBg ? 1 : 0,
-              }} />
-              {pomo.bgFlash && (
-                <div className="pomo-bg-overlay" style={{ background: 'rgba(50,71,93,0.09)', opacity: 1 }} />
-              )}
-              {pomoBreakBg && (
-                <div className="pomo-bg-overlay pomo-bg-break" style={{ background: 'rgba(50,71,93,0.09)' }} />
-              )}
+              <div className="pomo-bg-overlay" style={{ background: 'rgba(184,106,75,0.07)', opacity: pomoFocusBg ? 1 : 0 }} />
+              {pomo.bgFlash && <div className="pomo-bg-overlay" style={{ background: 'rgba(50,71,93,0.09)', opacity: 1 }} />}
+              {pomoBreakBg && <div className="pomo-bg-overlay pomo-bg-break" style={{ background: 'rgba(50,71,93,0.09)' }} />}
             </>
           )}
 
-          {/* Views sit above the overlays */}
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1 }}>
             <Suspense fallback={null}>
               {view === 'today'     && <MainView mode={t.mode} setMode={setMode} events={events} actions={actions} stats={stats} />}
-              {view === 'review'    && <Review events={events} actions={actions} />}
-              {view === 'dashboard' && <Dashboard />}
+              {view === 'review'    && <Review events={events} actions={actions} projects={projects} />}
+              {view === 'dashboard' && <Dashboard projects={projects} events={events} />}
               {view === 'projects'  && <Projects projects={projects} setProjects={setProjects} />}
-              {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} onAddManual={() => setShowManualEntry(true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} events={events} projects={projects} username={username} setUsername={saveUsername} syncStatus={syncStatus} onSyncNow={() => syncWithServer()} />}
+              {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} onAddManual={() => setShowManualEntry(true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} events={events} projects={projects} username={username} setUsername={saveUsername} syncStatus={syncStatus} onSyncNow={() => syncWithServer()} monitorAll={monitorAll} setMonitorAll={setMonitorAll} />}
               {view === 'widget'    && <Widget />}
             </Suspense>
           </div>
@@ -555,22 +562,21 @@ export default function App() {
       </div>
 
       <Suspense fallback={null}>
-        {t.onboarding && <Onboarding initialUsername={username} onClose={(u) => { if (u) saveUsername(u); setTweak('onboarding', false); }} />}
+        {t.onboarding && <Onboarding initialUsername={username} onClose={handleOnboardingClose} />}
         {showManualEntry && <ManualEntryModal projects={projects} onClose={() => setShowManualEntry(false)} onSave={addManualEntry} />}
       </Suspense>
       {pomo.showPrompt && <PomoPrompt onStart={pomoNewSession} onDismiss={pomoEndSession} />}
 
       <TweaksPanel>
-        <TweakSection label="Skin" />
+        <TweakSection label="Visual" />
         <TweakRadio label="Design system" value={t.brand} options={['objto', 'cursor', 'nike']} onChange={(v) => setTweak('brand', v)} />
-        <TweakSection label="Theme" />
-        <TweakToggle label="Dark mode" value={t.dark} onChange={(v) => setTweak('dark', v)} />
-        <TweakRadio label="Accent (OBJ_TO)" value={t.accent} options={['navy', 'clay', 'charcoal']} onChange={(v) => setTweak('accent', v)} />
-        <TweakSection label="Categorization UX" />
-        <TweakRadio label="Today view" value={t.mode} options={['timeline', 'calendar', 'triage']} onChange={(v) => setTweak('mode', v)} />
-        <TweakSection label="Screens" />
+        <TweakSection label="Tema" />
+        <TweakToggle label="Modo escuro" value={t.dark} onChange={(v) => setTweak('dark', v)} />
+        <TweakRadio label="Destaque (OBJ_TO)" value={t.accent} options={['navy', 'clay', 'charcoal']} onChange={(v) => setTweak('accent', v)} />
+        <TweakSection label="Hoje" />
+        <TweakRadio label="Modo de visualização" value={t.mode} options={['timeline', 'calendar', 'triage']} onChange={(v) => setTweak('mode', v)} />
+        <TweakSection label="Telas" />
         <TweakToggle label="Onboarding" value={t.onboarding} onChange={(v) => setTweak('onboarding', v)} />
-        <TweakToggle label="Windows chrome" value={t.chrome} onChange={(v) => setTweak('chrome', v)} />
       </TweaksPanel>
     </div>
   );

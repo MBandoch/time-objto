@@ -85,8 +85,8 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; height: 100%; }
-body { background: #cdccc7; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
-body:has(.app.dark) { background: #1a1a18; }
+body { background: #f0efec; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body:has(.app.dark) { background: #242422; }
 #root { min-height: 100vh; }
 
 /* ---- text roles ---- */

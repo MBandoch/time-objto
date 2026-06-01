@@ -1,5 +1,5 @@
 // ============================================================
-// OBJ_TO Time Tracker — mock data
+// OBJ_TO Time Tracker — estrutura de dados
 // ============================================================
 
 const toMin = (hhmm) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
@@ -13,50 +13,27 @@ const hrs = (min) => (min / 60).toFixed(1) + 'h';
 
 export const fmt = { toMin, clock, dur, hrs, pad };
 
-// Rule types: glob | contains | starts_with | ends_with | exact | regex
 export const RULE_TYPES = [
-  { value: 'glob',        label: 'Glob',       short: '*',  example: '*.skp',      desc: 'Wildcard pattern' },
-  { value: 'contains',    label: 'Contains',   short: '⊆',  example: 'Paulista',   desc: 'Title contains text' },
-  { value: 'starts_with', label: 'Starts',     short: '^',  example: 'Figma —',    desc: 'Title starts with' },
-  { value: 'ends_with',   label: 'Ends',       short: '$',  example: '.blend',     desc: 'Title ends with' },
-  { value: 'exact',       label: 'Exact',      short: '=',  example: 'SketchUp',   desc: 'Exact title match' },
-  { value: 'regex',       label: 'Regex',      short: 'R',  example: 'Paulista\\d+', desc: 'Regular expression' },
+  { value: 'glob',        label: 'Glob',       short: '*',  example: '*.skp',        desc: 'Padrão curinga' },
+  { value: 'contains',    label: 'Contém',     short: '⊆',  example: 'Paulista',     desc: 'Título contém texto' },
+  { value: 'starts_with', label: 'Inicia',     short: '^',  example: 'Figma —',      desc: 'Título inicia com' },
+  { value: 'ends_with',   label: 'Termina',    short: '$',  example: '.blend',       desc: 'Título termina com' },
+  { value: 'exact',       label: 'Exato',      short: '=',  example: 'SketchUp',     desc: 'Título exato' },
+  { value: 'regex',       label: 'Regex',      short: 'R',  example: 'Paulista\\d+', desc: 'Expressão regular' },
 ];
 
-export const PROJECTS = [
-  { id: 'paulista', name: 'Paulista 1306', client: 'Incorporadora Vega', color: 'var(--p-paulista)', rate: 95, billable: true,
-    rules: [
-      { type: 'exact',    pattern: 'SketchUp' },
-      { type: 'glob',     pattern: '*.skp' },
-      { type: 'contains', pattern: 'Paulista' },
-    ]},
-  { id: 'brand', name: 'Brand Redesign', client: 'Studio Rui', color: 'var(--p-brand)', rate: 80, billable: true,
-    rules: [
-      { type: 'exact',    pattern: 'Figma' },
-      { type: 'glob',     pattern: '*.fig' },
-      { type: 'contains', pattern: 'pinterest.com' },
-    ]},
-  { id: 'site', name: 'OBJ_TO Website', client: 'Internal', color: 'var(--p-site)', rate: 0, billable: false,
-    rules: [
-      { type: 'exact',    pattern: 'VS Code' },
-      { type: 'glob',     pattern: '*.tsx' },
-      { type: 'exact',    pattern: 'localhost' },
-    ]},
-  { id: 'vega-deck', name: 'Vega Pitch Deck', client: 'Incorporadora Vega', color: 'var(--p-vega)', rate: 80, billable: true,
-    rules: [
-      { type: 'exact', pattern: 'Keynote' },
-      { type: 'glob',  pattern: '*.key' },
-      { type: 'glob',  pattern: '*.pptx' },
-    ]},
-  { id: 'admin', name: 'Admin & Finance', client: 'OBJ_TO', color: 'var(--p-admin)', rate: 0, billable: false,
-    rules: [
-      { type: 'glob',  pattern: '*.xlsx' },
-      { type: 'exact', pattern: 'Mail' },
-      { type: 'exact', pattern: 'QuickBooks' },
-    ]},
+export const PROJECT_COLORS = [
+  { label: 'Azul',      value: 'var(--p-paulista)' },
+  { label: 'Terracota', value: 'var(--p-brand)'    },
+  { label: 'Âmbar',    value: 'var(--p-site)'     },
+  { label: 'Verde',    value: 'var(--p-vega)'     },
+  { label: 'Cinza',   value: 'var(--p-admin)'    },
 ];
 
-export const projById = Object.fromEntries(PROJECTS.map((p) => [p.id, p]));
+// Começa vazio — usuário cria projetos no onboarding ou na tela Projetos
+export const PROJECTS = [];
+export const projById  = {};
+export const EVENTS    = [];
 
 export const APPS = {
   figma:     { mono: 'Fig', name: 'Figma' },
@@ -72,38 +49,6 @@ export const APPS = {
   youtube:   { mono: 'Yt',  name: 'YouTube' },
 };
 
-const RAW_EVENTS = [
-  ['08:34', '09:12', 'figma',     'brand-redesign-v3.fig',          'brand',     'high', 'suggested'],
-  ['09:12', '09:26', 'chrome',    'Pinterest — moodboard',          'brand',     'med',  'suggested'],
-  ['09:26', '09:41', 'slack',     '#studio-rui',                    'admin',     'med',  'suggested'],
-  ['09:41', '10:38', 'sketchup',  'Paulista1306_facade_v4.skp',     'paulista',  'high', 'confirmed'],
-  ['10:52', '11:47', 'sketchup',  'Paulista1306_base.skp',          'paulista',  'high', 'suggested'],
-  ['11:47', '12:05', 'chrome',    'Google Maps — Av. Paulista',     'paulista',  'med',  'suggested'],
-  ['12:58', '13:40', 'vscode',    'objto-site/Hero.tsx',            'site',      'high', 'suggested'],
-  ['13:40', '14:05', 'chrome',    'localhost:5173',                 'site',      'med',  'suggested'],
-  ['14:05', '14:18', 'mail',      'Re: contrato Vega',              'admin',     'med',  'suggested'],
-  ['14:18', '15:02', 'keynote',   'Vega_pitch_v2.key',              'vega-deck', 'high', 'suggested'],
-  ['15:02', '15:20', 'photoshop', 'Untitled-3.psd',                 null,        'low',  'unsorted'],
-  ['15:20', '15:31', 'youtube',   'YouTube — break',                null,        'low',  'unsorted'],
-  ['15:31', '16:24', 'figma',     'brand-redesign-v3.fig',          'brand',     'high', 'suggested'],
-  ['16:24', '16:40', 'excel',     'Precificacao_3D_v10.xlsx',       'admin',     'high', 'suggested'],
-  ['16:40', '17:05', 'zoom',      'Vega — alinhamento',             null,        'low',  'unsorted'],
-  ['17:05', '17:48', 'sketchup',  'Paulista1306_facade_v4.skp',     'paulista',  'high', 'confirmed'],
-];
-
-let _id = 0;
-export const EVENTS = RAW_EVENTS.map(([s, e, app, title, proj, conf, status]) => ({
-  id: 'ev' + (++_id),
-  start: toMin(s), end: toMin(e), dur: toMin(e) - toMin(s),
-  app, title, project: proj, confidence: conf, status,
-}));
-
-export const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-export const WEEK_TOTALS = [451, 388, 502, 470, 419, 96, 0];
-export const WEEK_BY_PROJECT = [
-  { id: 'paulista',  min: 742 },
-  { id: 'brand',     min: 511 },
-  { id: 'vega-deck', min: 263 },
-  { id: 'site',      min: 405 },
-  { id: 'admin',     min: 205 },
-];
+export const WEEK_DAYS   = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+export const WEEK_TOTALS = [0, 0, 0, 0, 0, 0, 0];
+export const WEEK_BY_PROJECT = [];
