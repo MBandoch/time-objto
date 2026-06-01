@@ -20,7 +20,7 @@ export function MainTriage({ events, actions }) {
   const [idx, setIdx] = useState(0);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [makeRule, setMakeRule] = useState(true);
-  const [rules, setRules] = useState(() => PROJECTS.flatMap((p) => p.rules.slice(0, 1).map((r) => ({ pattern: r, project: p.id, seed: true }))));
+  const [rules, setRules] = useState(() => PROJECTS.flatMap((p) => p.rules.slice(0, 1).map((r) => ({ pattern: r.pattern, project: p.id, seed: true }))));
   const [flash, setFlash] = useState(null);
 
   const total = events.length;

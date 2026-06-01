@@ -13,17 +13,47 @@ const hrs = (min) => (min / 60).toFixed(1) + 'h';
 
 export const fmt = { toMin, clock, dur, hrs, pad };
 
+// Rule types: glob | contains | starts_with | ends_with | exact | regex
+export const RULE_TYPES = [
+  { value: 'glob',        label: 'Glob',       short: '*',  example: '*.skp',      desc: 'Wildcard pattern' },
+  { value: 'contains',    label: 'Contains',   short: '⊆',  example: 'Paulista',   desc: 'Title contains text' },
+  { value: 'starts_with', label: 'Starts',     short: '^',  example: 'Figma —',    desc: 'Title starts with' },
+  { value: 'ends_with',   label: 'Ends',       short: '$',  example: '.blend',     desc: 'Title ends with' },
+  { value: 'exact',       label: 'Exact',      short: '=',  example: 'SketchUp',   desc: 'Exact title match' },
+  { value: 'regex',       label: 'Regex',      short: 'R',  example: 'Paulista\\d+', desc: 'Regular expression' },
+];
+
 export const PROJECTS = [
   { id: 'paulista', name: 'Paulista 1306', client: 'Incorporadora Vega', color: 'var(--p-paulista)', rate: 95, billable: true,
-    rules: ['SketchUp', '*.skp', 'contains "Paulista"'] },
+    rules: [
+      { type: 'exact',    pattern: 'SketchUp' },
+      { type: 'glob',     pattern: '*.skp' },
+      { type: 'contains', pattern: 'Paulista' },
+    ]},
   { id: 'brand', name: 'Brand Redesign', client: 'Studio Rui', color: 'var(--p-brand)', rate: 80, billable: true,
-    rules: ['Figma', '*.fig', 'pinterest.com'] },
+    rules: [
+      { type: 'exact',    pattern: 'Figma' },
+      { type: 'glob',     pattern: '*.fig' },
+      { type: 'contains', pattern: 'pinterest.com' },
+    ]},
   { id: 'site', name: 'OBJ_TO Website', client: 'Internal', color: 'var(--p-site)', rate: 0, billable: false,
-    rules: ['VS Code', '*.tsx', 'localhost'] },
+    rules: [
+      { type: 'exact',    pattern: 'VS Code' },
+      { type: 'glob',     pattern: '*.tsx' },
+      { type: 'exact',    pattern: 'localhost' },
+    ]},
   { id: 'vega-deck', name: 'Vega Pitch Deck', client: 'Incorporadora Vega', color: 'var(--p-vega)', rate: 80, billable: true,
-    rules: ['Keynote', '*.key', '*.pptx'] },
+    rules: [
+      { type: 'exact', pattern: 'Keynote' },
+      { type: 'glob',  pattern: '*.key' },
+      { type: 'glob',  pattern: '*.pptx' },
+    ]},
   { id: 'admin', name: 'Admin & Finance', client: 'OBJ_TO', color: 'var(--p-admin)', rate: 0, billable: false,
-    rules: ['*.xlsx', 'Mail', 'QuickBooks'] },
+    rules: [
+      { type: 'glob',  pattern: '*.xlsx' },
+      { type: 'exact', pattern: 'Mail' },
+      { type: 'exact', pattern: 'QuickBooks' },
+    ]},
 ];
 
 export const projById = Object.fromEntries(PROJECTS.map((p) => [p.id, p]));

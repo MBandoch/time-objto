@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { exportPDF, exportCSV } from '../utils/exportPdf.js';
 
 function Switch({ on, onClick }) {
   return (
@@ -66,7 +67,7 @@ function Stepper({ value, onChange, min = 1, max = 120, suffix = 'm' }) {
   );
 }
 
-export function Settings({ t, setTweak, onReplayOnboarding, pomoConfig, setPomoConfig, sync, setSync }) {
+export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, pomoConfig, setPomoConfig, sync, setSync, events = [], projects = [] }) {
   const [autostart, setAutostart] = useState(true);
   const [idle, setIdle] = useState(true);
   const [titles, setTitles] = useState(true);
@@ -158,8 +159,14 @@ export function Settings({ t, setTweak, onReplayOnboarding, pomoConfig, setPomoC
           <Row title="Replay onboarding" desc="See the setup walkthrough again.">
             <button className="btn btn-ghost btn-sm" onClick={onReplayOnboarding}>Open</button>
           </Row>
-          <Row title="Export time data" desc="Download all tracked sessions as CSV." last>
-            <button className="btn btn-ghost btn-sm">Export CSV</button>
+          <Row title="Export time data" desc="Download all tracked sessions as CSV or PDF with R$ values.">
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => exportCSV(projects, events)}>CSV</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => exportPDF(projects, events)}>PDF</button>
+            </div>
+          </Row>
+          <Row title="Add manual entry" desc="Log time that wasn't captured automatically." last>
+            <button className="btn btn-ghost btn-sm" onClick={onAddManual}>Add</button>
           </Row>
         </Section>
       </div>

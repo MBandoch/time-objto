@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
-import { PROJECTS, EVENTS, projById, fmt } from './data.js';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { PROJECTS, EVENTS, projById, RULE_TYPES, fmt } from './data.js';
 import { PomodoroTimer } from './components/PomodoroTimer.jsx';
+import { ManualEntryModal } from './components/ManualEntryModal.jsx';
 import { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakRadio } from './components/TweaksPanel.jsx';
 import { MainView } from './views/MainView.jsx';
 import { Dashboard } from './views/Dashboard.jsx';
@@ -194,6 +195,26 @@ function MobileBar({ onMenu, title }) {
   );
 }
 
+function matchTitleToProject(title, projects) {
+  for (const p of projects) {
+    for (const rule of p.rules) {
+      let match = false;
+      if (rule.type === 'exact') match = title === rule.pattern;
+      else if (rule.type === 'contains') match = title.includes(rule.pattern);
+      else if (rule.type === 'starts_with') match = title.startsWith(rule.pattern);
+      else if (rule.type === 'ends_with') match = title.endsWith(rule.pattern);
+      else if (rule.type === 'glob') {
+        const re = new RegExp('^' + rule.pattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$', 'i');
+        match = re.test(title) || title.includes(rule.pattern.replace(/\*/g, ''));
+      } else if (rule.type === 'regex') {
+        try { match = new RegExp(rule.pattern, 'i').test(title); } catch { /* ignore */ }
+      }
+      if (match) return p.id;
+    }
+  }
+  return null;
+}
+
 const TWEAK_DEFAULTS = {
   brand: 'objto',
   dark: false,
@@ -223,6 +244,33 @@ export default function App() {
   const [events, setEvents] = useState(EVENTS);
   const [pomoConfig, setPomoConfig] = useState({ focus: 25, shortBreak: 5, longBreak: 15, cycles: 4 });
   const [sync, setSync] = useState({ enabled: false, url: '', interval: 'realtime' });
+  const [showManualEntry, setShowManualEntry] = useState(false);
+
+  // Native window tracking (Tauri only — no-op in browser)
+  const activeWindowRef = useRef('');
+  const idleRef = useRef(0);
+  useEffect(() => {
+    if (typeof window.__TAURI__ === 'undefined') return;
+    const poll = async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const [title, idle] = await Promise.all([invoke('get_active_window'), invoke('get_idle_seconds')]);
+        activeWindowRef.current = title;
+        idleRef.current = idle;
+        // Auto-match title against project rules
+        if (title && idle < 120) {
+          const matched = matchTitleToProject(title, projects);
+          if (matched) {
+            // Update the live tracking project (used by ActivityBody)
+            window.__ACTIVE_PROJECT__ = matched;
+          }
+        }
+      } catch { /* not in Tauri */ }
+    };
+    poll();
+    const t = setInterval(poll, 4000);
+    return () => clearInterval(t);
+  }, [projects]);
 
   const assign = (id, project) => setEvents((es) => es.map((e) => e.id === id
     ? { ...e, project, status: project ? 'confirmed' : 'unsorted', confidence: project ? 'high' : e.confidence } : e));
@@ -231,7 +279,8 @@ export default function App() {
   const bulkAssign = (ids, project) => setEvents((es) => es.map((e) => ids.includes(e.id)
     ? { ...e, project, status: project ? 'confirmed' : 'unsorted', confidence: project ? 'high' : e.confidence } : e));
   const bulkConfirm = (ids) => setEvents((es) => es.map((e) => ids.includes(e.id) ? { ...e, status: 'confirmed' } : e));
-  const actions = { assign, confirm, confirmAll, bulkAssign, bulkConfirm };
+  const addManualEntry = (ev) => setEvents((es) => [...es, ev]);
+  const actions = { assign, confirm, confirmAll, bulkAssign, bulkConfirm, addManualEntry, openManualEntry: () => setShowManualEntry(true) };
 
   const stats = useMemo(() => {
     let total = 0, billable = 0, review = 0;
@@ -290,12 +339,13 @@ export default function App() {
           {view === 'review'    && <Review events={events} actions={actions} />}
           {view === 'dashboard' && <Dashboard />}
           {view === 'projects'  && <Projects projects={projects} setProjects={setProjects} />}
-          {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} />}
+          {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} onAddManual={() => setShowManualEntry(true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} events={events} projects={projects} />}
           {view === 'widget'    && <Widget />}
         </main>
       </div>
 
       {t.onboarding && <Onboarding onClose={() => setTweak('onboarding', false)} />}
+      {showManualEntry && <ManualEntryModal projects={projects} onClose={() => setShowManualEntry(false)} onSave={addManualEntry} />}
 
       <TweaksPanel>
         <TweakSection label="Skin" />
