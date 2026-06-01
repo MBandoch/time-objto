@@ -39,8 +39,9 @@ function Wordmark({ tone = 'ink' }) {
 const LIVE_INIT = { running: false, startedAt: null, elapsed: 0, app: '', title: '', project: null };
 
 function ActivityBody({ onPopOut, liveTracking, projects, onToggle, onDiscard }) {
-  const { running, elapsed, app, title, project: projectId } = liveTracking;
+  const { running, elapsed, app, title, doc, project: projectId } = liveTracking;
   const p = projects.find(pr => pr.id === projectId);
+  const docLabel = doc || title;
   const hh = Math.floor(elapsed / 3600), mm = Math.floor((elapsed % 3600) / 60), ss = elapsed % 60;
 
   if (!running && elapsed === 0) {
@@ -76,12 +77,20 @@ function ActivityBody({ onPopOut, liveTracking, projects, onToggle, onDiscard })
           <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--fg-1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
         </div>
       ) : (
-        <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 4 }}>Sem projeto associado</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--obj-amber)', flex: 'none' }} />
+          <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>Não classificado · revisar</span>
+        </div>
       )}
 
-      {(app || title) && (
+      {docLabel && (
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--fg-1)', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {docLabel}
+        </div>
+      )}
+      {app && (
         <div className="mono" style={{ fontSize: 10.5, color: 'var(--fg-3)', marginBottom: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {[app, title && title !== app && title].filter(Boolean).join(' · ')}
+          {app}
         </div>
       )}
 
@@ -336,12 +345,23 @@ export default function App() {
   // Refs for polling closures
   const projectsRef   = useRef(projects);
   projectsRef.current = projects;
-  // Segmento de atividade em andamento: { project, app, title, startMs }
+  // Segmento de atividade em andamento: { project, app, title, doc, startMs }
   const segmentRef    = useRef(null);
 
   const POLL_MS = 4000;     // intervalo de verificação (igual ao Python: 4s)
   const IDLE_LIMIT = 120;   // segundos ociosos antes de pausar (igual ao Python)
   const MIN_COMMIT_SEC = 30; // descarta janelas com menos de 30s de uso
+
+  // Lê janela ativa + processo. Tenta o comando novo (get_window_info) e cai
+  // para o antigo (get_active_window) caso o binário ainda não tenha sido recompilado.
+  const readWindow = async (invoke) => {
+    try {
+      const info = await invoke('get_window_info');
+      if (info && typeof info === 'object') return { title: info.title || '', process: info.process || '' };
+    } catch { /* comando ausente — usa fallback */ }
+    const title = await invoke('get_active_window');
+    return { title: title || '', process: '' };
+  };
 
   // Native window tracking via Tauri (motor portado da versão Python v4).
   // Ativo quando "Monitorar todos os programas" está ligado: detecta a janela
@@ -351,6 +371,9 @@ export default function App() {
     let cancelled = false;
     let invoke = null;
 
+    // minutos desde a meia-noite (mesma unidade dos eventos das views)
+    const minOfDay = (ms) => { const d = new Date(ms); return d.getHours() * 60 + d.getMinutes(); };
+
     const commitSegment = (endMs) => {
       const seg = segmentRef.current;
       segmentRef.current = null;
@@ -359,11 +382,12 @@ export default function App() {
       if (sec < MIN_COMMIT_SEC) return;
       setEvents(es => [...es, {
         id: uid(),
-        start: Math.round(seg.startMs / 1000),
-        end: Math.round(endMs / 1000),
+        start: minOfDay(seg.startMs),
+        end: minOfDay(endMs),
         dur: Math.max(1, Math.round(sec / 60)),
         app: seg.app,
-        title: seg.title,
+        title: seg.doc || seg.title,   // nome do documento (legível na Revisão)
+        windowTitle: seg.title,        // título bruto da janela, para referência
         project: seg.project,
         confidence: seg.project ? 'high' : 'low',
         status: seg.project ? 'suggested' : 'unsorted',
@@ -374,7 +398,7 @@ export default function App() {
     const poll = async () => {
       try {
         if (!invoke) ({ invoke } = await import('@tauri-apps/api/core'));
-        const [title, idle] = await Promise.all([invoke('get_active_window'), invoke('get_idle_seconds')]);
+        const [{ title, process }, idle] = await Promise.all([readWindow(invoke), invoke('get_idle_seconds')]);
         if (cancelled) return;
         const now = Date.now();
 
@@ -385,15 +409,15 @@ export default function App() {
           return;
         }
 
-        const det = detectActivity(title, projectsRef.current);
+        const det = detectActivity(title, projectsRef.current, process);
         const seg = segmentRef.current;
         const changed = !seg || seg.title !== det.title || seg.project !== det.project;
         if (changed) {
           commitSegment(now);              // grava a janela anterior como sessão
-          segmentRef.current = { project: det.project, app: det.app, title: det.title, startMs: now };
+          segmentRef.current = { project: det.project, app: det.app, title: det.title, doc: det.doc, startMs: now };
         }
         const elapsed = Math.round((now - segmentRef.current.startMs) / 1000);
-        setLiveTracking({ running: true, startedAt: segmentRef.current.startMs, elapsed, app: det.app, title: det.title, project: det.project });
+        setLiveTracking({ running: true, startedAt: segmentRef.current.startMs, elapsed, app: det.app, title: det.title, doc: det.doc, project: det.project });
       } catch { /* não está no Tauri */ }
     };
 

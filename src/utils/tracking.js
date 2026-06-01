@@ -37,6 +37,32 @@ export function extractFileName(title) {
   return name || null;
 }
 
+// Extrai o nome do DOCUMENTO do título, mesmo sem extensão reconhecível.
+// 1) prefere um arquivo com extensão conhecida (extractFileName);
+// 2) senão, usa o primeiro segmento do título — convenção do Windows é
+//    "NomeDoArquivo - NomeDoApp" (ex.: "Paulista1306_facade_v4 - SketchUp Pro").
+//    Muitos apps (SketchUp, Word, Fusion antigo) omitem a extensão no título.
+export function extractDocName(title) {
+  if (!title) return null;
+  const withExt = extractFileName(title);
+  if (withExt) return withExt;
+
+  const parts = title.split(TITLE_SEP_RE).map((s) => s.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    // primeiro segmento costuma ser o documento; último é o app
+    const first = parts[0].replace(/^[*•\s]+/, '').replace(/\s*[-—–]\s*$/, '').trim();
+    // ignora se o primeiro segmento é claramente só o nome do app
+    if (first && first.length >= 2) return first;
+  }
+  return null;
+}
+
+// Normaliza o nome do processo (ex.: "SketchUp.exe" → "SketchUp").
+export function appLabel(process) {
+  if (!process) return '';
+  return process.replace(/\.exe$/i, '').trim();
+}
+
 // Extrai o nome do aplicativo do título (geralmente o último segmento no Windows).
 export function extractAppName(title) {
   if (!title) return '';
@@ -44,45 +70,59 @@ export function extractAppName(title) {
   return (parts.length ? parts[parts.length - 1] : title).trim();
 }
 
-// Cruza o título com as regras dos projetos cadastrados. Retorna o id do projeto ou null.
-export function matchTitleToProject(title, projects) {
-  if (!title) return null;
+// Cruza título E processo com as regras dos projetos cadastrados.
+// Retorna o id do projeto ou null. As regras podem casar tanto o título
+// da janela quanto o nome do executável (ex.: regra "sketchup.exe").
+export function matchToProject(title, process, projects) {
+  const haystacks = [title, process].filter(Boolean);
+  if (!haystacks.length) return null;
   for (const p of projects) {
     for (const rule of (p.rules || [])) {
-      let match = false;
-      if (rule.type === 'exact') match = title === rule.pattern;
-      else if (rule.type === 'contains') match = title.toLowerCase().includes(rule.pattern.toLowerCase());
-      else if (rule.type === 'starts_with') match = title.toLowerCase().startsWith(rule.pattern.toLowerCase());
-      else if (rule.type === 'ends_with') match = title.toLowerCase().endsWith(rule.pattern.toLowerCase());
-      else if (rule.type === 'glob') {
-        const re = new RegExp('^' + rule.pattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$', 'i');
-        match = re.test(title) || title.toLowerCase().includes(rule.pattern.replace(/\*/g, '').toLowerCase());
-      } else if (rule.type === 'regex') {
-        try { match = new RegExp(rule.pattern, 'i').test(title); } catch { /* ignora */ }
+      for (const text of haystacks) {
+        if (ruleMatches(rule, text)) return p.id;
       }
-      if (match) return p.id;
     }
   }
   return null;
 }
 
-// Detecta a atividade atual a partir do título da janela ativa.
+function ruleMatches(rule, text) {
+  const low = text.toLowerCase();
+  const pat = (rule.pattern || '');
+  const plow = pat.toLowerCase();
+  if (rule.type === 'exact') return low === plow; // case-insensitive, igual ao Python original
+  if (rule.type === 'contains') return low.includes(plow);
+  if (rule.type === 'starts_with') return low.startsWith(plow);
+  if (rule.type === 'ends_with') return low.endsWith(plow);
+  if (rule.type === 'glob') {
+    const re = new RegExp('^' + pat.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$', 'i');
+    return re.test(text) || low.includes(plow.replace(/\*/g, ''));
+  }
+  if (rule.type === 'regex') {
+    try { return new RegExp(pat, 'i').test(text); } catch { return false; }
+  }
+  return false;
+}
+
+// Compat: mantém a assinatura antiga (só título).
+export function matchTitleToProject(title, projects) {
+  return matchToProject(title, '', projects);
+}
+
+// Detecta a atividade atual a partir do título da janela ativa e do processo.
 // Espelha detect_current + resolve_project do Python:
-//   1) tenta casar com uma regra de projeto cadastrado;
-//   2) senão, extrai o nome do arquivo para virar uma sessão não classificada;
-//   3) senão, usa o nome do app. Sempre retorna algo rastreável (nunca null se houver título).
-export function detectActivity(title, projects) {
-  if (!title) return null;
-  const app = extractAppName(title);
+//   1) tenta casar título/processo com uma regra de projeto cadastrado;
+//   2) senão, extrai o nome do documento (com ou sem extensão) para a sessão;
+//   3) sempre retorna algo rastreável quando há título.
+export function detectActivity(title, projects, process = '') {
+  if (!title && !process) return null;
+  const app = appLabel(process) || extractAppName(title);
 
-  const pid = matchTitleToProject(title, projects);
-  if (pid) return { project: pid, app, title, label: title };
+  const pid = matchToProject(title, process, projects);
+  const doc = extractDocName(title);
 
-  const file = extractFileName(title);
-  if (file) return { project: null, app, title, label: file };
-
-  // Sem arquivo reconhecido — registra mesmo assim sob o nome do app/janela
-  return { project: null, app, title, label: app || title };
+  if (pid) return { project: pid, app, title, doc: doc || app, label: doc || title };
+  return { project: null, app, title, doc: doc || app, label: doc || app };
 }
 
 // Detecta se estamos rodando dentro do Tauri (WebView2), independente de withGlobalTauri.

@@ -4,27 +4,73 @@ use tauri::{
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
 };
 
-// Windows: read foreground window title via Win32 API (no extra crate needed)
+// Estrutura devolvida ao front-end: título da janela + executável do processo
+#[derive(serde::Serialize, Clone, Default)]
+struct WindowInfo {
+    title: String,
+    process: String,
+}
+
+// Windows: lê título da janela em primeiro plano + nome do processo via Win32
+// (GetForegroundWindow + GetWindowThreadProcessId + QueryFullProcessImageNameW).
 #[cfg(target_os = "windows")]
-fn active_window_title() -> String {
+fn active_window_info() -> WindowInfo {
     use std::ffi::OsString;
     use std::os::windows::ffi::OsStringExt;
 
     type HWND = *mut core::ffi::c_void;
+    type HANDLE = *mut core::ffi::c_void;
+
+    const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
+
     unsafe extern "system" {
         fn GetForegroundWindow() -> HWND;
         fn GetWindowTextW(hwnd: HWND, buf: *mut u16, len: i32) -> i32;
+        fn GetWindowThreadProcessId(hwnd: HWND, pid: *mut u32) -> u32;
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> HANDLE;
+        fn QueryFullProcessImageNameW(h: HANDLE, flags: u32, buf: *mut u16, size: *mut u32) -> i32;
+        fn CloseHandle(h: HANDLE) -> i32;
     }
 
     unsafe {
         let hwnd = GetForegroundWindow();
-        if hwnd.is_null() { return String::new(); }
+        if hwnd.is_null() { return WindowInfo::default(); }
+
+        // --- título ---
         let mut buf = vec![0u16; 512];
         let len = GetWindowTextW(hwnd, buf.as_mut_ptr(), buf.len() as i32);
-        if len <= 0 { return String::new(); }
-        buf.truncate(len as usize);
-        OsString::from_wide(&buf).to_string_lossy().into_owned()
+        let title = if len > 0 {
+            buf.truncate(len as usize);
+            OsString::from_wide(&buf).to_string_lossy().into_owned()
+        } else {
+            String::new()
+        };
+
+        // --- nome do processo (executável) ---
+        let mut pid: u32 = 0;
+        GetWindowThreadProcessId(hwnd, &mut pid);
+        let mut process = String::new();
+        if pid != 0 {
+            let h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+            if !h.is_null() {
+                let mut pbuf = vec![0u16; 512];
+                let mut size: u32 = pbuf.len() as u32;
+                if QueryFullProcessImageNameW(h, 0, pbuf.as_mut_ptr(), &mut size) != 0 {
+                    pbuf.truncate(size as usize);
+                    let full = OsString::from_wide(&pbuf).to_string_lossy().into_owned();
+                    process = full.rsplit(|c| c == '\\' || c == '/').next().unwrap_or("").to_string();
+                }
+                CloseHandle(h);
+            }
+        }
+
+        WindowInfo { title, process }
     }
+}
+
+#[cfg(target_os = "windows")]
+fn active_window_title() -> String {
+    active_window_info().title
 }
 
 #[cfg(target_os = "windows")]
@@ -49,6 +95,9 @@ fn idle_seconds() -> u32 {
 }
 
 #[cfg(not(target_os = "windows"))]
+fn active_window_info() -> WindowInfo { WindowInfo::default() }
+
+#[cfg(not(target_os = "windows"))]
 fn active_window_title() -> String { String::new() }
 
 #[cfg(not(target_os = "windows"))]
@@ -57,6 +106,11 @@ fn idle_seconds() -> u32 { 0 }
 #[tauri::command]
 fn get_active_window() -> String {
     active_window_title()
+}
+
+#[tauri::command]
+fn get_window_info() -> WindowInfo {
+    active_window_info()
 }
 
 #[tauri::command]
@@ -97,7 +151,7 @@ pub fn run() {
                 .build(app)?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_seconds])
+        .invoke_handler(tauri::generate_handler![get_active_window, get_window_info, get_idle_seconds])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
