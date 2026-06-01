@@ -1,15 +1,16 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import { PROJECTS, EVENTS, projById, RULE_TYPES, fmt } from './data.js';
 import { PomodoroBar } from './components/PomodoroTimer.jsx';
-import { ManualEntryModal } from './components/ManualEntryModal.jsx';
 import { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakRadio } from './components/TweaksPanel.jsx';
 import { MainView } from './views/MainView.jsx';
-import { Dashboard } from './views/Dashboard.jsx';
-import { Projects } from './views/Projects.jsx';
-import { Review } from './views/Review.jsx';
-import { Settings } from './views/Settings.jsx';
-import { Onboarding } from './views/Onboarding.jsx';
-import { Widget } from './views/Widget.jsx';
+
+const Dashboard       = lazy(() => import('./views/Dashboard.jsx').then(m => ({ default: m.Dashboard })));
+const Projects        = lazy(() => import('./views/Projects.jsx').then(m => ({ default: m.Projects })));
+const Review          = lazy(() => import('./views/Review.jsx').then(m => ({ default: m.Review })));
+const Settings        = lazy(() => import('./views/Settings.jsx').then(m => ({ default: m.Settings })));
+const Widget          = lazy(() => import('./views/Widget.jsx').then(m => ({ default: m.Widget })));
+const Onboarding      = lazy(() => import('./views/Onboarding.jsx').then(m => ({ default: m.Onboarding })));
+const ManualEntryModal = lazy(() => import('./components/ManualEntryModal.jsx').then(m => ({ default: m.ManualEntryModal })));
 
 // ---- inline icons ----
 const Ico = ({ d, size = 19 }) => (
@@ -541,18 +542,22 @@ export default function App() {
 
           {/* Views sit above the overlays */}
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1 }}>
-            {view === 'today'     && <MainView mode={t.mode} setMode={setMode} events={events} actions={actions} stats={stats} />}
-            {view === 'review'    && <Review events={events} actions={actions} />}
-            {view === 'dashboard' && <Dashboard />}
-            {view === 'projects'  && <Projects projects={projects} setProjects={setProjects} />}
-            {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} onAddManual={() => setShowManualEntry(true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} events={events} projects={projects} username={username} setUsername={saveUsername} syncStatus={syncStatus} onSyncNow={() => syncWithServer()} />}
-            {view === 'widget'    && <Widget />}
+            <Suspense fallback={null}>
+              {view === 'today'     && <MainView mode={t.mode} setMode={setMode} events={events} actions={actions} stats={stats} />}
+              {view === 'review'    && <Review events={events} actions={actions} />}
+              {view === 'dashboard' && <Dashboard />}
+              {view === 'projects'  && <Projects projects={projects} setProjects={setProjects} />}
+              {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} onAddManual={() => setShowManualEntry(true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} events={events} projects={projects} username={username} setUsername={saveUsername} syncStatus={syncStatus} onSyncNow={() => syncWithServer()} />}
+              {view === 'widget'    && <Widget />}
+            </Suspense>
           </div>
         </main>
       </div>
 
-      {t.onboarding && <Onboarding initialUsername={username} onClose={(u) => { if (u) saveUsername(u); setTweak('onboarding', false); }} />}
-      {showManualEntry && <ManualEntryModal projects={projects} onClose={() => setShowManualEntry(false)} onSave={addManualEntry} />}
+      <Suspense fallback={null}>
+        {t.onboarding && <Onboarding initialUsername={username} onClose={(u) => { if (u) saveUsername(u); setTweak('onboarding', false); }} />}
+        {showManualEntry && <ManualEntryModal projects={projects} onClose={() => setShowManualEntry(false)} onSave={addManualEntry} />}
+      </Suspense>
       {pomo.showPrompt && <PomoPrompt onStart={pomoNewSession} onDismiss={pomoEndSession} />}
 
       <TweaksPanel>

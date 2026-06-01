@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { exportPDF, exportCSV } from '../utils/exportPdf.js';
 
 function Switch({ on, onClick }) {
   return (
@@ -208,8 +207,8 @@ export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, pomoCon
           </Row>
           <Row title="Export time data" desc="Download all tracked sessions as CSV or PDF with R$ values.">
             <div style={{ display: 'flex', gap: 6 }}>
-              <button className="btn btn-ghost btn-sm" onClick={() => exportCSV(projects, events)}>CSV</button>
-              <button className="btn btn-ghost btn-sm" onClick={() => exportPDF(projects, events)}>PDF</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => import('../utils/exportPdf.js').then(m => m.exportCSV(projects, events))}>CSV</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => import('../utils/exportPdf.js').then(m => m.exportPDF(projects, events))}>PDF</button>
             </div>
           </Row>
           <Row title="Add manual entry" desc="Log time that wasn't captured automatically." last>
