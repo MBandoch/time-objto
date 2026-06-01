@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { PROJECTS, EVENTS, projById, RULE_TYPES, fmt } from './data.js';
-import { PomodoroTimer } from './components/PomodoroTimer.jsx';
+import { PomodoroBar } from './components/PomodoroTimer.jsx';
 import { ManualEntryModal } from './components/ManualEntryModal.jsx';
 import { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakRadio } from './components/TweaksPanel.jsx';
 import { MainView } from './views/MainView.jsx';
@@ -89,10 +89,7 @@ function ActivityBody({ onPopOut }) {
   );
 }
 
-function NowTracking({ onPopOut, pomoConfig, collapsed, onExpand }) {
-  const [tab, setTab] = useState('activity');
-  const tabs = [{ id: 'activity', label: 'Activity' }, { id: 'pomodoro', label: 'Pomodoro' }];
-
+function NowTracking({ onPopOut, pomo, onPomoToggle, onPomoStartStop, onPomoSkip, onPomoReset, pomoConfig, collapsed, onExpand }) {
   if (collapsed) {
     return (
       <div style={{ margin: '10px 0 12px', display: 'flex', justifyContent: 'center' }}>
@@ -111,24 +108,27 @@ function NowTracking({ onPopOut, pomoConfig, collapsed, onExpand }) {
   }
 
   return (
-    <div style={{ margin: 12, padding: 12, borderRadius: 'var(--r-md)', background: 'var(--bg-sunken)', border: '1px solid var(--line-1)' }}>
-      <div style={{ display: 'inline-flex', width: '100%', background: 'var(--bg)', borderRadius: 'var(--r-sm)', padding: 3, gap: 2, marginBottom: 11 }}>
-        {tabs.map((tb) => (
-          <button key={tb.id} onClick={() => setTab(tb.id)} style={{
-            flex: 1, border: 'none', cursor: 'pointer', padding: '5px 8px', borderRadius: 'var(--r-xs)',
-            fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
-            background: tab === tb.id ? 'var(--bg-elev)' : 'transparent',
-            color: tab === tb.id ? 'var(--fg-1)' : 'var(--fg-3)',
-            boxShadow: tab === tb.id ? 'var(--shadow-1)' : 'none', transition: '120ms ease-out',
-          }}>{tb.label}</button>
-        ))}
+    <div style={{ margin: 12, borderRadius: 'var(--r-md)', background: 'var(--bg-sunken)', border: '1px solid var(--line-1)', overflow: 'hidden' }}>
+      <PomodoroBar
+        config={pomoConfig}
+        active={pomo.active}
+        phase={pomo.phase}
+        secondsLeft={pomo.secondsLeft}
+        done={pomo.done}
+        running={pomo.running}
+        onToggle={onPomoToggle}
+        onStartStop={onPomoStartStop}
+        onSkip={onPomoSkip}
+        onReset={onPomoReset}
+      />
+      <div style={{ padding: 12 }}>
+        <ActivityBody onPopOut={onPopOut} />
       </div>
-      {tab === 'activity' ? <ActivityBody onPopOut={onPopOut} /> : <PomodoroTimer config={pomoConfig} />}
     </div>
   );
 }
 
-function Sidebar({ nav, view, onNavigate, collapsed, onToggleCollapse, chrome, pomoConfig, onPopOut, isMobile, onCloseDrawer }) {
+function Sidebar({ nav, view, onNavigate, collapsed, onToggleCollapse, chrome, pomoConfig, pomo, onPomoToggle, onPomoStartStop, onPomoSkip, onPomoReset, onPopOut, isMobile, onCloseDrawer }) {
   return (
     <>
       <div style={{
@@ -176,7 +176,17 @@ function Sidebar({ nav, view, onNavigate, collapsed, onToggleCollapse, chrome, p
       </div>
 
       <div style={{ marginTop: 'auto' }}>
-        <NowTracking onPopOut={onPopOut} pomoConfig={pomoConfig} collapsed={collapsed} onExpand={onToggleCollapse} />
+        <NowTracking
+          onPopOut={onPopOut}
+          pomo={pomo}
+          onPomoToggle={onPomoToggle}
+          onPomoStartStop={onPomoStartStop}
+          onPomoSkip={onPomoSkip}
+          onPomoReset={onPomoReset}
+          pomoConfig={pomoConfig}
+          collapsed={collapsed}
+          onExpand={onToggleCollapse}
+        />
       </div>
     </>
   );
@@ -191,6 +201,24 @@ function MobileBar({ onMenu, title }) {
       <Wordmark />
       <span style={{ width: 1, height: 14, background: 'var(--line-2)' }} />
       <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg-2)', textTransform: 'capitalize' }}>{title}</span>
+    </div>
+  );
+}
+
+function PomoPrompt({ onStart, onDismiss }) {
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: 'rgba(20,20,19,0.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, animation: 'fadeIn 200ms ease-out' }}>
+      <div className="card" style={{ padding: '28px 32px', maxWidth: 320, width: '90%', textAlign: 'center', animation: 'popIn 180ms ease-out', background: 'var(--bg-elev)' }}>
+        <div className="eyebrow" style={{ marginBottom: 10 }}>Pomodoro</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg-1)', marginBottom: 8 }}>Intervalo concluído</div>
+        <div style={{ fontSize: 13, color: 'var(--fg-2)', marginBottom: 24, lineHeight: 1.5 }}>
+          Deseja iniciar uma nova sessão de foco?
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+          <button className="btn btn-ghost btn-sm" onClick={onDismiss}>Encerrar</button>
+          <button className="btn btn-primary btn-sm" onClick={onStart}>Iniciar sessão</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -224,6 +252,8 @@ const TWEAK_DEFAULTS = {
   onboarding: false,
 };
 
+const POMO_INIT = { active: false, running: false, phase: 'focus', secondsLeft: 25 * 60, done: 0, bgFlash: false, showPrompt: false };
+
 export default function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [view, setView] = useState('today');
@@ -246,9 +276,68 @@ export default function App() {
   const [projects, setProjects] = useState(PROJECTS);
   const [events, setEvents] = useState(EVENTS);
   const [pomoConfig, setPomoConfig] = useState({ focus: 25, shortBreak: 5, longBreak: 15, cycles: 4 });
+  const [pomo, setPomo] = useState(POMO_INIT);
   const [sync, setSync] = useState({ enabled: false, url: '', interval: 'realtime' });
-  const [syncStatus, setSyncStatus] = useState(null); // null | 'syncing' | 'ok' | 'error'
+  const [syncStatus, setSyncStatus] = useState(null);
   const [showManualEntry, setShowManualEntry] = useState(false);
+
+  // Reset secondsLeft when config.focus changes and pomo is idle
+  useEffect(() => {
+    setPomo((p) => {
+      if (!p.active && !p.running) return { ...p, secondsLeft: pomoConfig.focus * 60 };
+      return p;
+    });
+  }, [pomoConfig.focus]);
+
+  // Countdown tick
+  useEffect(() => {
+    if (!pomo.active || !pomo.running) return;
+    const id = setInterval(() => {
+      setPomo((p) => {
+        if (p.secondsLeft > 1) return { ...p, secondsLeft: p.secondsLeft - 1 };
+        // Phase just reached zero
+        if (p.phase === 'focus') {
+          const nextDone = p.done + 1;
+          const nextPhase = nextDone % pomoConfig.cycles === 0 ? 'long' : 'short';
+          const nextSec = (nextPhase === 'long' ? pomoConfig.longBreak : pomoConfig.shortBreak) * 60;
+          return { ...p, running: false, bgFlash: true, phase: nextPhase, secondsLeft: nextSec, done: nextDone };
+        } else {
+          return { ...p, running: false, secondsLeft: 0, showPrompt: true };
+        }
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [pomo.active, pomo.running, pomoConfig]);
+
+  // Auto-start break after the brief blue flash
+  useEffect(() => {
+    if (!pomo.bgFlash) return;
+    const tid = setTimeout(() => {
+      setPomo((p) => ({ ...p, bgFlash: false, running: true }));
+    }, 1500);
+    return () => clearTimeout(tid);
+  }, [pomo.bgFlash]);
+
+  // Pomo handlers
+  const pomoToggle = () => setPomo((p) => {
+    if (p.active) return { ...POMO_INIT, secondsLeft: pomoConfig.focus * 60 };
+    return { ...p, active: true };
+  });
+  const pomoStartStop = () => setPomo((p) => ({ ...p, running: !p.running }));
+  const pomoSkip = () => setPomo((p) => {
+    let nextDone = p.done, nextPhase;
+    if (p.phase === 'focus') {
+      nextDone = p.done + 1;
+      nextPhase = nextDone % pomoConfig.cycles === 0 ? 'long' : 'short';
+    } else {
+      nextPhase = 'focus';
+    }
+    const nextSec = (nextPhase === 'focus' ? pomoConfig.focus : nextPhase === 'long' ? pomoConfig.longBreak : pomoConfig.shortBreak) * 60;
+    return { ...p, phase: nextPhase, secondsLeft: nextSec, done: nextDone, running: false, bgFlash: false, showPrompt: false };
+  });
+  const pomoReset = () => setPomo({ active: true, running: false, phase: 'focus', secondsLeft: pomoConfig.focus * 60, done: 0, bgFlash: false, showPrompt: false });
+  const pomoNewSession = () => setPomo({ active: true, running: true, phase: 'focus', secondsLeft: pomoConfig.focus * 60, done: 0, bgFlash: false, showPrompt: false });
+  const pomoEndSession = () => setPomo({ ...POMO_INIT, secondsLeft: pomoConfig.focus * 60 });
 
   // Native window tracking (Tauri only — no-op in browser)
   const activeWindowRef = useRef('');
@@ -261,13 +350,9 @@ export default function App() {
         const [title, idle] = await Promise.all([invoke('get_active_window'), invoke('get_idle_seconds')]);
         activeWindowRef.current = title;
         idleRef.current = idle;
-        // Auto-match title against project rules
         if (title && idle < 120) {
           const matched = matchTitleToProject(title, projects);
-          if (matched) {
-            // Update the live tracking project (used by ActivityBody)
-            window.__ACTIVE_PROJECT__ = matched;
-          }
+          if (matched) window.__ACTIVE_PROJECT__ = matched;
         }
       } catch { /* not in Tauri */ }
     };
@@ -286,7 +371,6 @@ export default function App() {
   const eventsRef = useRef(events);
   eventsRef.current = events;
 
-  // Convert a server DB row back into a client event object
   const normalizeServerSession = (row) => ({
     id:         row.id,
     start:      row.start,
@@ -301,7 +385,6 @@ export default function App() {
     fromServer: true,
   });
 
-  // Bidirectional sync: push local confirmed sessions, receive and merge server sessions
   const syncWithServer = useCallback(async (localSessions) => {
     const s = syncRef.current;
     const user = usernameRef.current;
@@ -324,7 +407,6 @@ export default function App() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
-      // Merge server sessions the client doesn't have yet
       if (Array.isArray(data.sessions) && data.sessions.length) {
         setEvents((prev) => {
           const localIds = new Set(prev.map((e) => e.id));
@@ -399,6 +481,10 @@ export default function App() {
   const sidebarCollapsed = collapsed && !isMobile;
   const currentLabel = (nav.find((n) => n.id === view) || {}).label || '';
 
+  // Pomodoro background: terracotta for focus, blue for bgFlash and break
+  const pomoFocusBg = pomo.active && pomo.phase === 'focus' && !pomo.bgFlash;
+  const pomoBreakBg = pomo.active && !pomo.bgFlash && (pomo.phase === 'short' || pomo.phase === 'long');
+
   return (
     <div className={'app' + (t.dark ? ' dark' : '') + brandClass} data-accent={t.accent} style={{
       ...(isMobile
@@ -424,23 +510,50 @@ export default function App() {
             nav={nav} view={view}
             onNavigate={(id) => { setView(id); if (isMobile) setDrawerOpen(false); }}
             collapsed={sidebarCollapsed} onToggleCollapse={() => setCollapsed((c) => !c)}
-            chrome={t.chrome} pomoConfig={pomoConfig} onPopOut={() => setView('widget')}
+            chrome={t.chrome}
+            pomoConfig={pomoConfig}
+            pomo={pomo}
+            onPomoToggle={pomoToggle}
+            onPomoStartStop={pomoStartStop}
+            onPomoSkip={pomoSkip}
+            onPomoReset={pomoReset}
+            onPopOut={() => setView('widget')}
             isMobile={isMobile} onCloseDrawer={() => setDrawerOpen(false)}
           />
         </nav>
 
-        <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
-          {view === 'today'     && <MainView mode={t.mode} setMode={setMode} events={events} actions={actions} stats={stats} />}
-          {view === 'review'    && <Review events={events} actions={actions} />}
-          {view === 'dashboard' && <Dashboard />}
-          {view === 'projects'  && <Projects projects={projects} setProjects={setProjects} />}
-          {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} onAddManual={() => setShowManualEntry(true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} events={events} projects={projects} username={username} setUsername={saveUsername} syncStatus={syncStatus} onSyncNow={() => syncWithServer()} />}
-          {view === 'widget'    && <Widget />}
+        <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--bg)', position: 'relative', overflow: 'hidden' }}>
+          {/* Pomodoro background overlays — sit behind content via z-index */}
+          {pomo.active && (
+            <>
+              <div className="pomo-bg-overlay" style={{
+                background: 'rgba(184,106,75,0.07)',
+                opacity: pomoFocusBg ? 1 : 0,
+              }} />
+              {pomo.bgFlash && (
+                <div className="pomo-bg-overlay" style={{ background: 'rgba(50,71,93,0.09)', opacity: 1 }} />
+              )}
+              {pomoBreakBg && (
+                <div className="pomo-bg-overlay pomo-bg-break" style={{ background: 'rgba(50,71,93,0.09)' }} />
+              )}
+            </>
+          )}
+
+          {/* Views sit above the overlays */}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1 }}>
+            {view === 'today'     && <MainView mode={t.mode} setMode={setMode} events={events} actions={actions} stats={stats} />}
+            {view === 'review'    && <Review events={events} actions={actions} />}
+            {view === 'dashboard' && <Dashboard />}
+            {view === 'projects'  && <Projects projects={projects} setProjects={setProjects} />}
+            {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} onAddManual={() => setShowManualEntry(true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} events={events} projects={projects} username={username} setUsername={saveUsername} syncStatus={syncStatus} onSyncNow={() => syncWithServer()} />}
+            {view === 'widget'    && <Widget />}
+          </div>
         </main>
       </div>
 
       {t.onboarding && <Onboarding initialUsername={username} onClose={(u) => { if (u) saveUsername(u); setTweak('onboarding', false); }} />}
       {showManualEntry && <ManualEntryModal projects={projects} onClose={() => setShowManualEntry(false)} onSave={addManualEntry} />}
+      {pomo.showPrompt && <PomoPrompt onStart={pomoNewSession} onDismiss={pomoEndSession} />}
 
       <TweaksPanel>
         <TweakSection label="Skin" />

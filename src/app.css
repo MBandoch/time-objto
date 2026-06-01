@@ -145,3 +145,8 @@ body:has(.app.dark) { background: #1a1a18; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes popIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
 @keyframes ping { 0% { opacity: 0.7; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(2.4); } }
+
+/* Pomodoro background overlays */
+@keyframes pomoBreakPulse { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+.pomo-bg-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 0; transition: opacity 600ms ease-out; }
+.pomo-bg-break   { animation: pomoBreakPulse 3.5s ease-in-out infinite; }
