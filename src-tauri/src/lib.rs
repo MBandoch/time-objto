@@ -1,3 +1,4 @@
+use serde::Serialize;
 use tauri::{
     Manager,
     WebviewUrl, WebviewWindowBuilder,
@@ -11,7 +12,7 @@ use std::sync::Mutex;
 struct CloseBehavior(Mutex<String>);
 
 // Estrutura devolvida ao front-end: título da janela + executável do processo
-#[derive(serde::Serialize, Clone, Default)]
+#[derive(Serialize, Clone, Default)]
 struct WindowInfo {
     title: String,
     process: String,
