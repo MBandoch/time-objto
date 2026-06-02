@@ -47,12 +47,12 @@ function DayHeader({ stats, mode, setMode, onConfirmAll }) {
   );
 }
 
-export function MainView({ mode, setMode, events, actions, stats }) {
+export function MainView({ mode, setMode, events, actions, stats, projects = [] }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <DayHeader stats={stats} mode={mode} setMode={setMode} onConfirmAll={actions.confirmAll} />
       <div className="main-body" style={{ flex: 1, minHeight: 0 }}>
-        {mode === 'timeline' && <MainTimeline events={events} actions={actions} />}
+        {mode === 'timeline' && <MainTimeline events={events} actions={actions} projects={projects} />}
         {mode === 'calendar' && <MainCalendar events={events} actions={actions} />}
         {mode === 'triage'   && <MainTriage   events={events} actions={actions} />}
       </div>

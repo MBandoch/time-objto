@@ -125,7 +125,7 @@ function NewProjectModal({ onClose, onSave, allRules }) {
     return () => document.removeEventListener('keydown', h);
   }, [onClose]);
 
-  const valid = name.trim().length > 0 && client.trim().length > 0;
+  const valid = name.trim().length > 0;
 
   const save = () => {
     if (!valid) return;
@@ -166,7 +166,7 @@ function NewProjectModal({ onClose, onSave, allRules }) {
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Paulista 1306" autoFocus
                 style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg-1)', background: 'var(--bg)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '9px 11px', outline: 'none' }} />
             )}
-            {field('Client',
+            {field('Client (opcional)',
               <input value={client} onChange={(e) => setClient(e.target.value)} placeholder="Ex: Incorporadora Vega"
                 style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg-1)', background: 'var(--bg)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '9px 11px', outline: 'none' }} />
             )}

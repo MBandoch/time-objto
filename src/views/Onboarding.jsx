@@ -135,7 +135,7 @@ export function Onboarding({ onClose, initialUsername = '' }) {
 
             {/* Client */}
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-3)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>Cliente</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-3)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>Cliente <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10.5, opacity: 0.7 }}>(opcional)</span></label>
               <input value={proj.client} onChange={e => setProj(p => ({ ...p, client: e.target.value }))}
                 placeholder="Ex: Incorporadora Vega" spellCheck={false}
                 style={{ width: '100%', boxSizing: 'border-box', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg-1)', background: 'var(--bg)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '8px 12px', outline: 'none' }} />

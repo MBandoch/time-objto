@@ -4,6 +4,7 @@ const K = {
   pomoConfig: 'objto_pomo_config',
   sync:       'objto_sync',
   monitorAll: 'objto_monitor_all',
+  goals:      'objto_goals',
 };
 
 const DEFAULTS = {
@@ -12,6 +13,7 @@ const DEFAULTS = {
   pomoConfig: { focus: 25, shortBreak: 5, longBreak: 15, cycles: 4 },
   sync:       { enabled: false, url: '', interval: 'realtime' },
   monitorAll: false,
+  goals:      [],
 };
 
 function load(key, fallback) {
@@ -41,4 +43,6 @@ export const storage = {
   savePomoConfig: (v) => save(K.pomoConfig, v),
   saveSync:       (v) => save(K.sync,       v),
   saveMonitorAll: (v) => save(K.monitorAll, v),
+  loadGoals:      () => load(K.goals, DEFAULTS.goals),
+  saveGoals:      (v) => save(K.goals, v),
 };
