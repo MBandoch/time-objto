@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } fro
 import { fmt } from './data.js';
 import { detectActivity, isTauri, uid } from './utils/tracking.js';
 import { storage } from './utils/storage.js';
+import { isWebMode, loadData, pushData } from './utils/api.js';
 import { PomodoroBar } from './components/PomodoroTimer.jsx';
 import { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakRadio } from './components/TweaksPanel.jsx';
 import { MainView } from './views/MainView.jsx';
@@ -11,6 +12,8 @@ const Projects         = lazy(() => import('./views/Projects.jsx').then(m => ({ 
 const Review           = lazy(() => import('./views/Review.jsx').then(m => ({ default: m.Review })));
 const Settings         = lazy(() => import('./views/Settings.jsx').then(m => ({ default: m.Settings })));
 const Goals            = lazy(() => import('./views/Goals.jsx').then(m => ({ default: m.Goals })));
+const Clients          = lazy(() => import('./views/Clients.jsx').then(m => ({ default: m.Clients })));
+const Reports          = lazy(() => import('./views/Reports.jsx').then(m => ({ default: m.Reports })));
 const Widget           = lazy(() => import('./views/Widget.jsx').then(m => ({ default: m.Widget })));
 const Onboarding       = lazy(() => import('./views/Onboarding.jsx').then(m => ({ default: m.Onboarding })));
 const ManualEntryModal = lazy(() => import('./components/ManualEntryModal.jsx').then(m => ({ default: m.ManualEntryModal })));
@@ -25,7 +28,9 @@ const icons = {
   dashboard: <><path d="M3 3v18h18" /><rect x="7" y="11" width="3" height="6" /><rect x="13" y="7" width="3" height="10" /></>,
   projects:  <><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12" /></>,
   goals:     <><circle cx="12" cy="12" r="10" /><path d="M12 8v4l3 3" /></>,
-  settings:  <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></>,
+  clients:   <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
+  reports:   <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></>,
+  settings:<><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></>,
 };
 
 function Wordmark({ tone = 'ink' }) {
@@ -294,6 +299,8 @@ export default function App() {
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [monitorAll, setMonitorAll] = useState(() => storage.loadMonitorAll());
   const [goals, setGoals] = useState(() => storage.loadGoals());
+  const [clients, setClients] = useState(() => storage.loadClients());
+  const [tags, setTags] = useState(() => storage.loadTags());
   // Comportamento ao fechar a janela: 'tray' (minimizar para bandeja) ou 'quit'
   const [closeBehavior, setCloseBehavior] = useState(() => localStorage.getItem('objto_close_behavior') || 'tray');
 
@@ -304,6 +311,8 @@ export default function App() {
   useEffect(() => { storage.saveSync(sync); }, [sync]);
   useEffect(() => { storage.saveMonitorAll(monitorAll); }, [monitorAll]);
   useEffect(() => { storage.saveGoals(goals); }, [goals]);
+  useEffect(() => { storage.saveClients(clients); }, [clients]);
+  useEffect(() => { storage.saveTags(tags); }, [tags]);
 
   // Live tracking state — paused by default (item 5)
   const [liveTracking, setLiveTracking] = useState(LIVE_INIT);
@@ -326,6 +335,30 @@ export default function App() {
     if (!isTauri()) return;
     import('@tauri-apps/api/core').then(({ invoke }) => invoke('set_close_behavior', { mode: closeBehavior })).catch(() => {});
   }, [closeBehavior]);
+
+  // Web mode: load full state from server on mount
+  useEffect(() => {
+    if (!isWebMode || !username) return;
+    loadData(username).then(data => {
+      if (data.sessions?.length)  setEvents(data.sessions);
+      if (data.projects?.length)  setProjects(data.projects);
+      if (data.clients?.length)   setClients(data.clients);
+      if (data.tags?.length)      setTags(data.tags);
+      if (data.goals?.length)     setGoals(data.goals);
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally runs once on mount
+
+  // Web mode: debounced push to server after any state change
+  const pushTimerRef = useRef(null);
+  useEffect(() => {
+    if (!isWebMode || !username) return;
+    clearTimeout(pushTimerRef.current);
+    pushTimerRef.current = setTimeout(() => {
+      pushData(username, { sessions: events, projects, clients, tags, goals }).catch(() => {});
+    }, 3000);
+    return () => clearTimeout(pushTimerRef.current);
+  }, [events, projects, clients, tags, goals, username]);
 
   // Abre a janela flutuante real (Tauri); fora do Tauri, mostra a pré-visualização interna
   const openMiniWindow = useCallback(async () => {
@@ -583,6 +616,8 @@ export default function App() {
     { id: 'review',    label: 'Revisão',       icon: 'review',    badge: stats.review },
     { id: 'dashboard', label: 'Dashboard',     icon: 'dashboard' },
     { id: 'projects',  label: 'Projetos',      icon: 'projects' },
+    { id: 'clients',   label: 'Clientes',      icon: 'clients' },
+    { id: 'reports',   label: 'Relatórios',    icon: 'reports' },
     { id: 'goals',     label: 'Metas',         icon: 'goals' },
     { id: 'settings',  label: 'Configurações', icon: 'settings' },
   ];
@@ -646,9 +681,11 @@ export default function App() {
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1 }}>
             <Suspense fallback={null}>
               {view === 'today'     && <MainView mode={t.mode} setMode={setMode} events={events} actions={actions} stats={stats} projects={projects} />}
-              {view === 'review'    && <Review events={events} actions={actions} projects={projects} />}
+              {view === 'review'    && <Review events={events} actions={actions} projects={projects} tags={tags} setTags={setTags} />}
               {view === 'dashboard' && <Dashboard projects={projects} events={events} />}
-              {view === 'projects'  && <Projects projects={projects} setProjects={setProjects} />}
+              {view === 'projects'  && <Projects projects={projects} setProjects={setProjects} clients={clients} tags={tags} setTags={setTags} />}
+              {view === 'clients'   && <Clients clients={clients} setClients={setClients} projects={projects} />}
+              {view === 'reports'   && <Reports events={events} projects={projects} clients={clients} />}
               {view === 'goals'     && <Goals goals={goals} setGoals={setGoals} events={events} projects={projects} />}
               {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} onAddManual={() => setShowManualEntry(true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} events={events} projects={projects} username={username} setUsername={saveUsername} syncStatus={syncStatus} onSyncNow={() => syncWithServer()} monitorAll={monitorAll} setMonitorAll={setMonitorAll} closeBehavior={closeBehavior} setCloseBehavior={saveCloseBehavior} onOpenMiniWindow={openMiniWindow} />}
               {view === 'widget'    && <Widget liveTracking={liveTracking} projects={projects} onOpenWindow={openMiniWindow} />}

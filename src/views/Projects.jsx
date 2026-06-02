@@ -110,9 +110,10 @@ function RulesEditor({ rules, onChange, allRules }) {
 
 // ── New Project Modal ─────────────────────────────────────────────────────────
 
-function NewProjectModal({ onClose, onSave, allRules }) {
+function NewProjectModal({ onClose, onSave, allRules, clients = [] }) {
   const [name, setName] = useState('');
-  const [client, setClient] = useState('');
+  const [clientId, setClientId] = useState('');
+  const [clientText, setClientText] = useState('');
   const [billable, setBillable] = useState(true);
   const [rate, setRate] = useState(80);
   const [color, setColor] = useState(SWATCH_COLORS[0]);
@@ -129,7 +130,10 @@ function NewProjectModal({ onClose, onSave, allRules }) {
 
   const save = () => {
     if (!valid) return;
-    onSave({ id: 'p' + Date.now(), name: name.trim(), client: client.trim(), billable, rate: billable ? rate : 0, color, rules });
+    const resolvedClient = clients.length > 0
+      ? (clients.find(c => c.id === clientId)?.name || '')
+      : clientText.trim();
+    onSave({ id: 'p' + Date.now(), name: name.trim(), client: resolvedClient, clientId: clientId || null, billable, rate: billable ? rate : 0, color, rules });
     onClose();
   };
 
@@ -166,9 +170,17 @@ function NewProjectModal({ onClose, onSave, allRules }) {
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Paulista 1306" autoFocus
                 style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg-1)', background: 'var(--bg)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '9px 11px', outline: 'none' }} />
             )}
-            {field('Client (opcional)',
-              <input value={client} onChange={(e) => setClient(e.target.value)} placeholder="Ex: Incorporadora Vega"
-                style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg-1)', background: 'var(--bg)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '9px 11px', outline: 'none' }} />
+            {field('Cliente (opcional)',
+              clients.length > 0 ? (
+                <select value={clientId} onChange={e => setClientId(e.target.value)}
+                  style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg-1)', background: 'var(--bg)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '9px 11px', outline: 'none', cursor: 'pointer' }}>
+                  <option value="">— Nenhum —</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              ) : (
+                <input value={clientText} onChange={(e) => setClientText(e.target.value)} placeholder="Ex: Incorporadora Vega"
+                  style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg-1)', background: 'var(--bg)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '9px 11px', outline: 'none' }} />
+              )
             )}
           </div>
 
@@ -346,7 +358,7 @@ function ProjectRulesPanel({ project, onChange, allRules }) {
 
 // ── Projects Screen ───────────────────────────────────────────────────────────
 
-export function Projects({ projects, setProjects }) {
+export function Projects({ projects, setProjects, clients = [], tags = [], setTags }) {
   const weekMap = Object.fromEntries(WEEK_BY_PROJECT.map((r) => [r.id, r.min]));
   const [expanded, setExpanded] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -380,12 +392,14 @@ export function Projects({ projects, setProjects }) {
     if (sourceIds.includes(expanded)) setExpanded(null);
   };
 
+  const clientById = Object.fromEntries(clients.map(c => [c.id, c]));
+
   return (
     <div className="scroll" style={{ height: '100%', overflowY: 'auto', position: 'relative' }}>
       <div className="screen-inner" style={{ maxWidth: 940, margin: '0 auto', padding: '24px 26px 48px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
           <div>
-            <div className="eyebrow">{projects.length} active · {new Set(projects.map((p) => p.client)).size} clients</div>
+            <div className="eyebrow">{projects.length} ativos · {clients.length} clientes</div>
             <h1 className="disp" style={{ fontSize: 40, margin: '4px 0 0' }}>Projects</h1>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -405,6 +419,7 @@ export function Projects({ projects, setProjects }) {
             const isOpen = expanded === p.id;
             const otherRules = allRulesFor(p.id);
             const valueR = p.billable && min > 0 ? Math.round((min / 60) * p.rate) : 0;
+            const clientName = (p.clientId && clientById[p.clientId]?.name) || p.client || '';
             return (
               <div key={p.id} className="card" style={{
                 padding: '16px 18px', transition: '140ms ease-out',
@@ -420,7 +435,7 @@ export function Projects({ projects, setProjects }) {
                         {p.billable ? `R$ ${p.rate}/h` : 'Internal'}
                       </span>
                     </div>
-                    <div style={{ fontSize: 12.5, color: 'var(--fg-3)', margin: '3px 0 10px' }}>{p.client}</div>
+                    <div style={{ fontSize: 12.5, color: 'var(--fg-3)', margin: '3px 0 10px' }}>{clientName}</div>
 
                     <button onClick={() => setExpanded(isOpen ? null : p.id)} style={{
                       display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', background: 'transparent',
@@ -470,6 +485,7 @@ export function Projects({ projects, setProjects }) {
           onClose={() => setShowModal(false)}
           onSave={addProject}
           allRules={projects.flatMap((p) => p.rules.map((r) => ({ ...r, projectName: p.name })))}
+          clients={clients}
         />
       )}
 
