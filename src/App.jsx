@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
-import { PROJECTS, EVENTS, RULE_TYPES, fmt } from './data.js';
+import { fmt } from './data.js';
 import { detectActivity, isTauri, uid } from './utils/tracking.js';
+import { storage } from './utils/storage.js';
 import { PomodoroBar } from './components/PomodoroTimer.jsx';
 import { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakRadio } from './components/TweaksPanel.jsx';
 import { MainView } from './views/MainView.jsx';
@@ -275,16 +276,23 @@ export default function App() {
   const [username, setUsername] = useState(() => localStorage.getItem('objto_username') || '');
   const saveUsername = (u) => { setUsername(u); localStorage.setItem('objto_username', u); };
 
-  const [projects, setProjects] = useState(PROJECTS);
-  const [events, setEvents] = useState(EVENTS);
-  const [pomoConfig, setPomoConfig] = useState({ focus: 25, shortBreak: 5, longBreak: 15, cycles: 4 });
+  const [projects, setProjects] = useState(() => storage.loadProjects());
+  const [events, setEvents] = useState(() => storage.loadEvents());
+  const [pomoConfig, setPomoConfig] = useState(() => storage.loadPomoConfig());
   const [pomo, setPomo] = useState(POMO_INIT);
-  const [sync, setSync] = useState({ enabled: false, url: '', interval: 'realtime' });
+  const [sync, setSync] = useState(() => storage.loadSync());
   const [syncStatus, setSyncStatus] = useState(null);
   const [showManualEntry, setShowManualEntry] = useState(false);
-  const [monitorAll, setMonitorAll] = useState(false);
+  const [monitorAll, setMonitorAll] = useState(() => storage.loadMonitorAll());
   // Comportamento ao fechar a janela: 'tray' (minimizar para bandeja) ou 'quit'
   const [closeBehavior, setCloseBehavior] = useState(() => localStorage.getItem('objto_close_behavior') || 'tray');
+
+  // Persistência local
+  useEffect(() => { storage.saveProjects(projects); }, [projects]);
+  useEffect(() => { storage.saveEvents(events); }, [events]);
+  useEffect(() => { storage.savePomoConfig(pomoConfig); }, [pomoConfig]);
+  useEffect(() => { storage.saveSync(sync); }, [sync]);
+  useEffect(() => { storage.saveMonitorAll(monitorAll); }, [monitorAll]);
 
   // Live tracking state — paused by default (item 5)
   const [liveTracking, setLiveTracking] = useState(LIVE_INIT);
