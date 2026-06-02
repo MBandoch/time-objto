@@ -27,7 +27,16 @@ const FILE_RE = new RegExp(
 // Separadores comuns de título de janela: "arquivo — App", "doc - Word", "página | Site"
 const TITLE_SEP_RE = /\s[—–|·]\s|\s-\s/;
 
-// Extrai o nome do arquivo (sem extensão) do título da janela.
+// Retorna o nome completo do arquivo COM extensão (ex: "Paulista1306.skp").
+// Retorna null se nenhuma extensão reconhecida for encontrada no título.
+export function extractFileWithExt(title) {
+  if (!title) return null;
+  const m = title.match(FILE_RE);
+  if (!m) return null;
+  return m[1].split(/[\\/]/).pop() || null;
+}
+
+// Extrai o nome do arquivo SEM extensão do título da janela.
 export function extractFileName(title) {
   if (!title) return null;
   const m = title.match(FILE_RE);
@@ -70,11 +79,15 @@ export function extractAppName(title) {
   return (parts.length ? parts[parts.length - 1] : title).trim();
 }
 
-// Cruza título E processo com as regras dos projetos cadastrados.
-// Retorna o id do projeto ou null. As regras podem casar tanto o título
-// da janela quanto o nome do executável (ex.: regra "sketchup.exe").
+// Cruza o nome do arquivo com as regras dos projetos cadastrados.
+// Haystacks: nome com extensão → nome sem extensão → título completo como fallback
+// (quando não há arquivo identificável). O processo/executável não é testado.
 export function matchToProject(title, process, projects) {
-  const haystacks = [title, process].filter(Boolean);
+  const fileWithExt = extractFileWithExt(title);  // "Paulista1306.skp"
+  const docName     = extractDocName(title);       // "Paulista1306"
+  const haystacks   = [fileWithExt, docName].filter(Boolean);
+  // Sem arquivo reconhecível: usa o título completo (apps sem arquivo, ex: Chrome, Slack)
+  if (!haystacks.length && title) haystacks.push(title);
   if (!haystacks.length) return null;
   for (const p of projects) {
     for (const rule of (p.rules || [])) {
@@ -111,15 +124,16 @@ export function matchTitleToProject(title, projects) {
 
 // Detecta a atividade atual a partir do título da janela ativa e do processo.
 // Espelha detect_current + resolve_project do Python:
-//   1) tenta casar título/processo com uma regra de projeto cadastrado;
-//   2) senão, extrai o nome do documento (com ou sem extensão) para a sessão;
+//   1) tenta casar o nome do arquivo com regras de projeto;
+//   2) extrai o nome do arquivo (com extensão) para armazenar na sessão;
 //   3) sempre retorna algo rastreável quando há título.
 export function detectActivity(title, projects, process = '') {
   if (!title && !process) return null;
   const app = appLabel(process) || extractAppName(title);
 
   const pid = matchToProject(title, process, projects);
-  const doc = extractDocName(title);
+  // Prefere o nome com extensão para que Review/Triagem possam agrupar por *.ext
+  const doc = extractFileWithExt(title) || extractDocName(title);
 
   if (pid) return { project: pid, app, title, doc: doc || app, label: doc || title };
   return { project: null, app, title, doc: doc || app, label: doc || app };
