@@ -120,22 +120,36 @@ function EventCard({ ev, projects, actions, toY }) {
   );
 }
 
-function EmptyState() {
+function EmptyState({ onStartTracking }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 10, color: 'var(--fg-3)', padding: 40 }}>
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
-        <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
-      </svg>
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-2)' }}>Nenhuma sessão hoje</div>
-      <div style={{ fontSize: 12.5, color: 'var(--fg-3)', textAlign: 'center', maxWidth: 280, lineHeight: 1.5 }}>
-        Ative o monitoramento nas Configurações para registrar automaticamente as janelas abertas.
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 16, padding: 48 }}>
+      <div style={{
+        width: 72, height: 72, borderRadius: '50%',
+        background: 'var(--bg-sunken)', border: '1px solid var(--line-1)',
+        display: 'grid', placeItems: 'center',
+      }}>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.35 }}>
+          <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+        </svg>
       </div>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--fg-1)', marginBottom: 6 }}>Nenhuma sessão hoje</div>
+        <div style={{ fontSize: 13, color: 'var(--fg-3)', maxWidth: 300, lineHeight: 1.6 }}>
+          Inicie o rastreamento para registrar automaticamente os programas e arquivos que você usar.
+        </div>
+      </div>
+      {onStartTracking && (
+        <button className="btn btn-primary" onClick={onStartTracking} style={{ gap: 8, padding: '10px 22px', fontSize: 14 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+          Iniciar dia de trabalho
+        </button>
+      )}
     </div>
   );
 }
 
-export function MainTimeline({ events, actions, projects = [] }) {
-  if (!events.length) return <EmptyState />;
+export function MainTimeline({ events, actions, projects = [], onStartTracking }) {
+  if (!events.length) return <EmptyState onStartTracking={onStartTracking} />;
 
   const starts = events.map(e => e.start);
   const ends = events.map(e => e.end || (e.start + e.dur));
