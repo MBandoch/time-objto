@@ -11,6 +11,9 @@ use std::sync::Mutex;
 // Preferência de fechamento da janela principal: "tray" (esconde) ou "quit" (encerra)
 struct CloseBehavior(Mutex<String>);
 
+// Indica se há um timer ativo — usado para decidir se o widget deve aparecer automaticamente
+struct TrackingActive(Mutex<bool>);
+
 // Estrutura devolvida ao front-end: título da janela + executável do processo
 #[derive(Serialize, Clone, Default)]
 struct WindowInfo {
@@ -133,15 +136,14 @@ fn set_close_behavior(state: tauri::State<CloseBehavior>, mode: String) {
     }
 }
 
-// Abre (ou foca) a janela flutuante always-on-top.
-#[tauri::command]
-fn open_mini_widget(app: tauri::AppHandle) {
+// Cria ou foca a janela flutuante (lógica compartilhada entre comando e handler interno).
+fn do_open_mini_widget(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("widget") {
         let _ = w.show();
         let _ = w.set_focus();
         return;
     }
-    let _ = WebviewWindowBuilder::new(&app, "widget", WebviewUrl::App("index.html".into()))
+    let _ = WebviewWindowBuilder::new(app, "widget", WebviewUrl::App("index.html".into()))
         .title("OBJ_TO")
         .inner_size(280.0, 150.0)
         .min_inner_size(240.0, 120.0)
@@ -152,6 +154,12 @@ fn open_mini_widget(app: tauri::AppHandle) {
         .build();
 }
 
+// Abre (ou foca) a janela flutuante always-on-top.
+#[tauri::command]
+fn open_mini_widget(app: tauri::AppHandle) {
+    do_open_mini_widget(&app);
+}
+
 // Esconde a janela flutuante.
 #[tauri::command]
 fn close_mini_widget(app: tauri::AppHandle) {
@@ -160,10 +168,45 @@ fn close_mini_widget(app: tauri::AppHandle) {
     }
 }
 
+// Informa o backend se há timer ativo (para auto-abrir o widget ao minimizar/fechar).
+#[tauri::command]
+fn set_tracking_active(state: tauri::State<TrackingActive>, active: bool) {
+    if let Ok(mut b) = state.0.lock() {
+        *b = active;
+    }
+}
+
+// Retorna true se a janela principal está minimizada — usado pelo frontend.
+#[tauri::command]
+fn is_main_minimized(app: tauri::AppHandle) -> bool {
+    app.get_webview_window("main")
+        .and_then(|w| w.is_minimized().ok())
+        .unwrap_or(false)
+}
+
+// Lista subpastas imediatas (não-ocultas) de um diretório — usada pelo importador de projetos.
+#[tauri::command]
+fn list_subfolders(path: String) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(&path)
+        .map(|entries| {
+            entries
+                .filter_map(|e| e.ok())
+                .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+                .filter_map(|e| e.file_name().into_string().ok())
+                .filter(|name| !name.starts_with('.'))
+                .collect()
+        })
+        .unwrap_or_default();
+    names.sort_unstable_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+    names
+}
+
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .manage(CloseBehavior(Mutex::new("tray".to_string())))
+        .manage(TrackingActive(Mutex::new(false)))
         .on_window_event(|window, event| {
             // Ao fechar a janela principal: esconde para a bandeja ou encerra,
             // conforme a preferência. A janela flutuante sempre fecha de fato.
@@ -178,6 +221,16 @@ pub fn run() {
                     if mode == "tray" {
                         api.prevent_close();
                         let _ = window.hide();
+                        // Se há timer ativo, abre o widget para o usuário não perder de vista
+                        let tracking = window
+                            .state::<TrackingActive>()
+                            .0
+                            .lock()
+                            .map(|b| *b)
+                            .unwrap_or(false);
+                        if tracking {
+                            do_open_mini_widget(window.app_handle());
+                        }
                     }
                 }
             }
@@ -224,8 +277,11 @@ pub fn run() {
             get_window_info,
             get_idle_seconds,
             set_close_behavior,
+            set_tracking_active,
+            is_main_minimized,
             open_mini_widget,
-            close_mini_widget
+            close_mini_widget,
+            list_subfolders
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -100,16 +100,16 @@ export function MainCalendar({ events, actions }) {
       <div style={{ borderLeft: '1px solid var(--line-1)', display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--bg-elev)' }}>
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-1)', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <div className="eyebrow">Review inbox</div>
-            <div style={{ fontSize: 13, color: 'var(--fg-2)', marginTop: 2 }}>{inbox.length ? `${inbox.length} blocks to sort` : 'All sorted'}</div>
+            <div className="eyebrow">Caixa de revisão</div>
+            <div style={{ fontSize: 13, color: 'var(--fg-2)', marginTop: 2 }}>{inbox.length ? `${inbox.length} blocos para classificar` : 'Tudo classificado'}</div>
           </div>
-          {inbox.length > 0 && <button className="btn btn-ghost btn-sm" onClick={actions.confirmAll}>Accept all</button>}
+          {inbox.length > 0 && <button className="btn btn-ghost btn-sm" onClick={actions.confirmAll}>Aceitar tudo</button>}
         </div>
         <div className="scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
           {inbox.length === 0 ? (
             <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--fg-3)', padding: 24 }}>
               <div style={{ fontSize: 34, marginBottom: 8 }} className="disp">✓</div>
-              <div style={{ fontSize: 13 }}>Inbox zero. Every block is matched to a project.</div>
+              <div style={{ fontSize: 13 }}>Caixa vazia. Todos os blocos estão classificados.</div>
             </div>
           ) : inbox.map((ev) => <InboxCard key={ev.id} ev={ev} actions={actions} hi={hi} setHi={setHi} />)}
         </div>

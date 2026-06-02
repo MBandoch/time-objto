@@ -66,7 +66,7 @@ export function ProjectPicker({ value, onChange, onClose, align = 'left', width 
       boxShadow: 'var(--shadow-3)', padding: 6, maxHeight: 300, overflowY: 'auto',
       animation: 'popIn 120ms ease-out',
     }}>
-      <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Assign to project…"
+      <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Atribuir a projeto…"
         style={{ width: '100%', border: 'none', borderBottom: '1px solid var(--line-1)', background: 'transparent',
           padding: '6px 6px 9px', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg-1)', outline: 'none', marginBottom: 4 }} />
       {list.map((p) => (
@@ -89,7 +89,7 @@ export function ProjectPicker({ value, onChange, onClose, align = 'left', width 
         display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', marginTop: 4,
         padding: '8px', border: 'none', borderTop: '1px solid var(--line-1)', background: 'transparent',
         borderRadius: 0, cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--fg-3)', fontSize: 12.5 }}>
-        <span style={{ width: 9, textAlign: 'center' }}>＋</span> New project · leave unsorted
+        <span style={{ width: 9, textAlign: 'center' }}>＋</span> Novo projeto · deixar sem classificar
       </button>
     </div>
   );

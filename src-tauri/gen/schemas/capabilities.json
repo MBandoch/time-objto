@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Capability for the main and widget windows","local":true,"windows":["main","widget"],"permissions":["core:default","core:window:allow-start-dragging"]}}
+{"default":{"identifier":"default","description":"Capability for the main and widget windows","local":true,"windows":["main","widget"],"permissions":["core:default","core:window:allow-start-dragging","dialog:allow-open"]}}

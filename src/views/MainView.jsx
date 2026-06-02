@@ -41,9 +41,9 @@ function TrackingButton({ monitorAll, onToggle, liveTracking }) {
 
 function DayHeader({ stats, mode, setMode, onConfirmAll, monitorAll, onToggleMonitor, liveTracking }) {
   const modes = [
-    { id: 'timeline', label: 'Timeline' },
-    { id: 'calendar', label: 'Calendar + Inbox' },
-    { id: 'triage',   label: 'Triage' },
+    { id: 'timeline', label: 'Linha do tempo' },
+    { id: 'calendar', label: 'Calendário' },
+    { id: 'triage',   label: 'Triagem' },
   ];
   return (
     <div className="day-header" style={{ borderBottom: '1px solid var(--line-1)', flex: 'none' }}>

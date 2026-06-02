@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { APPS, fmt } from '../data.js';
 import { AppTile, Dot, ProjectPicker } from '../components/ui.jsx';
+import { MainTriage } from './MainTriage.jsx';
 
 function patOf(ev) {
   const title = ev.title || ev.doc || '';
@@ -25,9 +26,9 @@ function GroupCard({ group, actions, projects, projById }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-1)' }}>{group.key}</span>
-            <span className="chip" style={{ cursor: 'default', background: 'var(--bg-sunken)', borderColor: 'var(--line-1)', color: 'var(--fg-2)', fontSize: 10.5 }}>{group.items.length} {group.items.length > 1 ? 'sessions' : 'session'}</span>
+            <span className="chip" style={{ cursor: 'default', background: 'var(--bg-sunken)', borderColor: 'var(--line-1)', color: 'var(--fg-2)', fontSize: 10.5 }}>{group.items.length} {group.items.length > 1 ? 'sessões' : 'sessão'}</span>
           </div>
-          <div className="mono" style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 2 }}>{fmt.dur(total)} total · detected signal</div>
+          <div className="mono" style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 2 }}>{fmt.dur(total)} total · sinal detectado</div>
         </div>
       </div>
 
@@ -43,7 +44,7 @@ function GroupCard({ group, actions, projects, projById }) {
 
       {sugg && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--fg-3)' }}>
-          <span className="eyebrow" style={{ fontSize: 9 }}>Suggests</span>
+          <span className="eyebrow" style={{ fontSize: 9 }}>Sugestão</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, color: 'var(--fg-1)' }}><Dot color={sugg.color} /> {sugg.name}</span>
         </div>
       )}
@@ -51,26 +52,49 @@ function GroupCard({ group, actions, projects, projById }) {
       {sugg && rule !== null && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--fg-2)', cursor: 'pointer' }}>
           <input type="checkbox" checked={rule} onChange={(e) => setRule(e.target.checked)} style={{ accentColor: 'var(--accent)', width: 14, height: 14 }} />
-          Make a rule: <span className="mono" style={{ fontWeight: 700, color: 'var(--fg-1)' }}>{group.key}</span> → {sugg.name}
+          Criar regra: <span className="mono" style={{ fontWeight: 700, color: 'var(--fg-1)' }}>{group.key}</span> → {sugg.name}
         </label>
       )}
 
       <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
         {sugg ? (
           <button className="btn btn-primary btn-sm" style={{ flex: 1, justifyContent: 'center' }} onClick={() => assignAll(group.project)}>
-            Confirm all → {sugg.name}
+            Confirmar tudo → {sugg.name}
           </button>
         ) : (
-          <button className="btn btn-primary btn-sm" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setOpen(true)}>Assign group…</button>
+          <button className="btn btn-primary btn-sm" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setOpen(true)}>Atribuir grupo…</button>
         )}
-        <button className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}>Change</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}>Alterar</button>
         {open && <ProjectPicker value={group.project} projects={projects} align="right" width={260} onChange={(pid) => assignAll(pid)} onClose={() => setOpen(false)} />}
       </div>
     </div>
   );
 }
 
+const TABS = [
+  { id: 'lote',    label: 'Revisão em lote' },
+  { id: 'triagem', label: 'Triagem' },
+];
+
+function TabBar({ tab, setTab }) {
+  return (
+    <div style={{ flex: 'none', borderBottom: '1px solid var(--line-1)', display: 'flex', alignItems: 'flex-end', padding: '0 26px', background: 'var(--bg-elev)' }}>
+      {TABS.map((t) => (
+        <button key={t.id} onClick={() => setTab(t.id)} style={{
+          border: 'none', background: 'transparent', cursor: 'pointer',
+          padding: '13px 14px 11px', marginRight: 2,
+          fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
+          color: tab === t.id ? 'var(--fg-1)' : 'var(--fg-3)',
+          borderBottom: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
+          transition: '120ms ease-out',
+        }}>{t.label}</button>
+      ))}
+    </div>
+  );
+}
+
 export function Review({ events, actions, projects = [] }) {
+  const [tab, setTab] = useState('lote');
   const projById = useMemo(() => Object.fromEntries(projects.map((p) => [p.id, p])), [projects]);
   const queue = events.filter((e) => e.status !== 'confirmed');
   const map = new Map();
@@ -87,32 +111,44 @@ export function Review({ events, actions, projects = [] }) {
   }).sort((a, b) => (a.project ? 0 : 1) - (b.project ? 0 : 1));
 
   return (
-    <div className="scroll" style={{ height: '100%', overflowY: 'auto' }}>
-      <div className="screen-inner" style={{ maxWidth: 920, margin: '0 auto', padding: '24px 26px 48px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 6, gap: 16, flexWrap: 'wrap' }}>
-          <div>
-            <div className="eyebrow">Batch review · grouped by detected signal</div>
-            <h1 className="disp" style={{ fontSize: 40, margin: '4px 0 0' }}>Review</h1>
-          </div>
-          {queue.length > 0 && <button className="btn btn-ghost" onClick={actions.confirmAll}>Accept every suggestion</button>}
-        </div>
-        <p style={{ fontSize: 13.5, color: 'var(--fg-2)', maxWidth: 560, margin: '8px 0 22px' }}>
-          {queue.length > 0
-            ? `${queue.length} blocks across ${groups.length} signals. Confirm a whole group at once — and turn it into a rule so the same files sort themselves next time.`
-            : 'Nothing to review. Every tracked block is matched to a project.'}
-        </p>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      <TabBar tab={tab} setTab={setTab} />
 
-        {queue.length === 0 ? (
-          <div className="card" style={{ padding: 48, textAlign: 'center', color: 'var(--fg-2)' }}>
-            <div className="disp" style={{ fontSize: 46, color: 'var(--obj-success)', lineHeight: 1 }}>✓</div>
-            <div style={{ fontSize: 15, marginTop: 8 }}>Inbox zero</div>
+      {tab === 'lote' && (
+        <div className="scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+          <div className="screen-inner" style={{ maxWidth: 920, margin: '0 auto', padding: '24px 26px 48px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 6, gap: 16, flexWrap: 'wrap' }}>
+              <div>
+                <div className="eyebrow">Revisão em lote · agrupado por sinal detectado</div>
+                <h1 className="disp" style={{ fontSize: 40, margin: '4px 0 0' }}>Revisão</h1>
+              </div>
+              {queue.length > 0 && <button className="btn btn-ghost" onClick={actions.confirmAll}>Aceitar todas as sugestões</button>}
+            </div>
+            <p style={{ fontSize: 13.5, color: 'var(--fg-2)', maxWidth: 560, margin: '8px 0 22px' }}>
+              {queue.length > 0
+                ? `${queue.length} blocos em ${groups.length} sinais. Confirme um grupo inteiro de uma vez — e transforme em regra para os mesmos arquivos se classificarem automaticamente.`
+                : 'Nada a revisar. Todos os blocos rastreados estão classificados.'}
+            </p>
+
+            {queue.length === 0 ? (
+              <div className="card" style={{ padding: 48, textAlign: 'center', color: 'var(--fg-2)' }}>
+                <div className="disp" style={{ fontSize: 46, color: 'var(--obj-success)', lineHeight: 1 }}>✓</div>
+                <div style={{ fontSize: 15, marginTop: 8 }}>Caixa vazia</div>
+              </div>
+            ) : (
+              <div className="col-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, alignItems: 'start' }}>
+                {groups.map((g) => <GroupCard key={g.key} group={g} actions={actions} projects={projects} projById={projById} />)}
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="col-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, alignItems: 'start' }}>
-            {groups.map((g) => <GroupCard key={g.key} group={g} actions={actions} projects={projects} projById={projById} />)}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {tab === 'triagem' && (
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <MainTriage events={events} actions={actions} />
+        </div>
+      )}
     </div>
   );
 }

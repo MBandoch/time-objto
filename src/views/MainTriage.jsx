@@ -73,8 +73,8 @@ export function MainTriage({ events, actions }) {
       <div className="scroll" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '26px 24px 40px' }}>
         <div style={{ width: '100%', maxWidth: 520, marginBottom: 22 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
-            <span className="eyebrow">Review queue</span>
-            <span className="mono" style={{ fontSize: 12, color: 'var(--fg-2)' }}>{done} / {total} sorted</span>
+            <span className="eyebrow">Fila de revisão</span>
+            <span className="mono" style={{ fontSize: 12, color: 'var(--fg-2)' }}>{done} / {total} classificados</span>
           </div>
           <div style={{ height: 5, borderRadius: 3, background: 'var(--bg-sunken)', overflow: 'hidden' }}>
             <div style={{ width: `${(done / total) * 100}%`, height: '100%', background: 'var(--accent)', transition: 'width 200ms ease-out' }} />
@@ -84,8 +84,8 @@ export function MainTriage({ events, actions }) {
         {!cur ? (
           <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--fg-2)' }}>
             <div className="disp" style={{ fontSize: 60, color: 'var(--obj-success)', lineHeight: 1 }}>✓</div>
-            <h2 className="disp" style={{ fontSize: 30, margin: '10px 0 4px', color: 'var(--fg-1)' }}>Queue cleared</h2>
-            <p style={{ fontSize: 13.5, maxWidth: 320 }}>Every tracked block is matched to a project. New activity is sorted automatically by your rules.</p>
+            <h2 className="disp" style={{ fontSize: 30, margin: '10px 0 4px', color: 'var(--fg-1)' }}>Fila zerada</h2>
+            <p style={{ fontSize: 13.5, maxWidth: 320 }}>Todos os blocos estão classificados. Nova atividade será ordenada automaticamente pelas suas regras.</p>
           </div>
         ) : (
           <div className="card" style={{ width: '100%', maxWidth: 520, padding: 24, boxShadow: 'var(--shadow-2)', position: 'relative' }} key={cur.id}>
@@ -100,7 +100,7 @@ export function MainTriage({ events, actions }) {
               </div>
             </div>
 
-            <div className="eyebrow" style={{ marginBottom: 9 }}>{cur.project ? 'Detected match — confirm or change' : 'No match — assign a project'}</div>
+            <div className="eyebrow" style={{ marginBottom: 9 }}>{cur.project ? 'Correspondência detectada — confirmar ou alterar' : 'Sem correspondência — atribuir um projeto'}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {suggestions.map((p, i) => {
                 const detected = p.id === cur.project;
@@ -118,13 +118,13 @@ export function MainTriage({ events, actions }) {
                       <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-1)', display: 'block' }}>{p.name}</span>
                       <span style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{p.client}</span>
                     </span>
-                    {detected && <span className="eyebrow" style={{ color: 'var(--accent)', fontSize: 9 }}>Detected</span>}
+                    {detected && <span className="eyebrow" style={{ color: 'var(--accent)', fontSize: 9 }}>Detectado</span>}
                     <kbd style={kbdStyle}>{i + 1}</kbd>
                   </button>
                 );
               })}
               <div style={{ position: 'relative' }}>
-                <button className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setPickerOpen(true)}>Another project…</button>
+                <button className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setPickerOpen(true)}>Outro projeto…</button>
                 {pickerOpen && <ProjectPicker value={cur.project} onChange={(id) => accept(id)} onClose={() => setPickerOpen(false)} />}
               </div>
             </div>
@@ -133,16 +133,16 @@ export function MainTriage({ events, actions }) {
               <label style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 16, padding: '10px 12px', borderRadius: 'var(--r-sm)', background: 'var(--bg-sunken)', cursor: 'pointer' }}>
                 <input type="checkbox" checked={makeRule} onChange={(e) => setMakeRule(e.target.checked)} style={{ accentColor: 'var(--accent)', width: 15, height: 15 }} />
                 <span style={{ fontSize: 12.5, color: 'var(--fg-2)', lineHeight: 1.4 }}>
-                  Always map <span className="mono" style={{ color: 'var(--fg-1)', fontWeight: 700 }}>{pat.label}</span> → {projById[cur.project].name}
-                  {moreInQueue > 0 && <span style={{ color: 'var(--accent)', fontWeight: 700 }}> · sorts {moreInQueue} more now</span>}
+                  Sempre mapear <span className="mono" style={{ color: 'var(--fg-1)', fontWeight: 700 }}>{pat.label}</span> → {projById[cur.project].name}
+                  {moreInQueue > 0 && <span style={{ color: 'var(--accent)', fontWeight: 700 }}> · classifica mais {moreInQueue} agora</span>}
                 </span>
               </label>
             )}
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
-              <button className="btn btn-ghost btn-sm" onClick={skip}>Skip <kbd style={kbdStyle}>→</kbd></button>
+              <button className="btn btn-ghost btn-sm" onClick={skip}>Pular <kbd style={kbdStyle}>→</kbd></button>
               <button className="btn btn-primary" onClick={() => accept()} disabled={!cur.project}
-                style={{ opacity: cur.project ? 1 : 0.4 }}>Accept <kbd style={{ ...kbdStyle, background: 'rgba(255,255,255,0.18)', color: 'inherit', borderColor: 'rgba(255,255,255,0.3)' }}>↵</kbd></button>
+                style={{ opacity: cur.project ? 1 : 0.4 }}>Aceitar <kbd style={{ ...kbdStyle, background: 'rgba(255,255,255,0.18)', color: 'inherit', borderColor: 'rgba(255,255,255,0.3)' }}>↵</kbd></button>
             </div>
           </div>
         )}
@@ -150,8 +150,8 @@ export function MainTriage({ events, actions }) {
 
       <div style={{ borderLeft: '1px solid var(--line-1)', background: 'var(--bg-elev)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-1)', flex: 'none' }}>
-          <div className="eyebrow">Smart rules</div>
-          <div style={{ fontSize: 12.5, color: 'var(--fg-3)', marginTop: 3, lineHeight: 1.4 }}>Files matching a rule are sorted automatically — no review needed.</div>
+          <div className="eyebrow">Regras inteligentes</div>
+          <div style={{ fontSize: 12.5, color: 'var(--fg-3)', marginTop: 3, lineHeight: 1.4 }}>Arquivos com correspondência são classificados automaticamente.</div>
         </div>
         <div className="scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 7 }}>
           {rules.map((r, i) => {
@@ -167,16 +167,16 @@ export function MainTriage({ events, actions }) {
                 <span style={{ color: 'var(--fg-3)', flex: 'none' }}>→</span>
                 <Dot color={p.color} size={8} />
                 <span style={{ fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
-                {r.fresh && <span className="eyebrow" style={{ marginLeft: 'auto', color: 'var(--accent)', fontSize: 8.5 }}>New</span>}
+                {r.fresh && <span className="eyebrow" style={{ marginLeft: 'auto', color: 'var(--accent)', fontSize: 8.5 }}>Nova</span>}
               </div>
             );
           })}
         </div>
         <div style={{ padding: '11px 16px', borderTop: '1px solid var(--line-1)', flex: 'none', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--fg-3)' }}>
           <kbd style={kbdStyle}>1</kbd><kbd style={kbdStyle}>2</kbd><kbd style={kbdStyle}>3</kbd>
-          <span style={{ fontSize: 11 }}>assign</span>
-          <kbd style={kbdStyle}>↵</kbd><span style={{ fontSize: 11 }}>accept</span>
-          <kbd style={kbdStyle}>→</kbd><span style={{ fontSize: 11 }}>skip</span>
+          <span style={{ fontSize: 11 }}>atribuir</span>
+          <kbd style={kbdStyle}>↵</kbd><span style={{ fontSize: 11 }}>aceitar</span>
+          <kbd style={kbdStyle}>→</kbd><span style={{ fontSize: 11 }}>pular</span>
         </div>
       </div>
     </div>

@@ -46,11 +46,10 @@ function Wordmark({ tone = 'ink' }) {
 // ---- Live tracking sidebar card ----
 const LIVE_INIT = { running: false, startedAt: null, elapsed: 0, app: '', title: '', project: null };
 
-function ActivityBody({ onPopOut, liveTracking, projects, onToggle, onDiscard }) {
+function ActivityBody({ liveTracking, projects, onToggle, onDiscard }) {
   const { running, elapsed, app, title, doc, project: projectId } = liveTracking;
   const p = projects.find(pr => pr.id === projectId);
   const docLabel = doc || title;
-  const hh = Math.floor(elapsed / 3600), mm = Math.floor((elapsed % 3600) / 60), ss = elapsed % 60;
 
   if (!running && elapsed === 0) {
     return (
@@ -65,20 +64,6 @@ function ActivityBody({ onPopOut, liveTracking, projects, onToggle, onDiscard })
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9 }}>
-        <span style={{ position: 'relative', width: 8, height: 8 }}>
-          <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: running ? 'var(--obj-success)' : 'var(--fg-3)' }} />
-          {running && <span style={{ position: 'absolute', inset: -3, borderRadius: '50%', border: '1px solid var(--obj-success)', animation: 'ping 1.6s ease-out infinite' }} />}
-        </span>
-        <span className="eyebrow" style={{ color: running ? 'var(--obj-success)' : 'var(--fg-3)', fontSize: 9.5 }}>
-          {running ? 'Rastreando' : 'Pausado'}
-        </span>
-        <button className="btn-icon" onClick={onPopOut} title="Abrir mini widget" style={{ marginLeft: 'auto', padding: 4 }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>
-        </button>
-        <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-1)' }}>{fmt.pad(hh)}:{fmt.pad(mm)}:{fmt.pad(ss)}</span>
-      </div>
-
       {p ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: p.color, flex: 'none' }} />
@@ -87,7 +72,7 @@ function ActivityBody({ onPopOut, liveTracking, projects, onToggle, onDiscard })
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--obj-amber)', flex: 'none' }} />
-          <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>Não classificado · revisar</span>
+          <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>Não classificado</span>
         </div>
       )}
 
@@ -118,6 +103,20 @@ function ActivityBody({ onPopOut, liveTracking, projects, onToggle, onDiscard })
 }
 
 function NowTracking({ onPopOut, pomo, onPomoToggle, onPomoStartStop, onPomoSkip, onPomoReset, pomoConfig, liveTracking, projects, onToggleTracking, onDiscardTracking, collapsed, onExpand }) {
+  const { running, elapsed } = liveTracking;
+  const hh = Math.floor(elapsed / 3600), mm = Math.floor((elapsed % 3600) / 60), ss = elapsed % 60;
+  const isIdle = !running && elapsed === 0;
+
+  const timerColor = !running
+    ? 'var(--fg-3)'
+    : pomo.active
+      ? (pomo.phase === 'focus' ? 'var(--obj-clay)' : 'var(--accent)')
+      : 'var(--obj-success)';
+
+  const statusLabel = pomo.active && running
+    ? (pomo.phase === 'focus' ? 'Foco' : pomo.phase === 'short' ? 'Pausa curta' : 'Pausa longa')
+    : running ? 'Rastreando' : 'Pausado';
+
   if (collapsed) {
     return (
       <div style={{ margin: '10px 0 12px', display: 'flex', justifyContent: 'center' }}>
@@ -126,10 +125,10 @@ function NowTracking({ onPopOut, pomo, onPomoToggle, onPomoStartStop, onPomoSkip
           background: 'var(--bg-sunken)', border: '1px solid var(--line-1)', borderRadius: 'var(--r-md)', color: 'var(--fg-2)',
         }}>
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
-          {liveTracking.running && (
+          {running && (
             <span style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8 }}>
-              <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'var(--obj-success)' }} />
-              <span style={{ position: 'absolute', inset: -3, borderRadius: '50%', border: '1px solid var(--obj-success)', animation: 'ping 1.6s ease-out infinite' }} />
+              <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: timerColor }} />
+              <span style={{ position: 'absolute', inset: -3, borderRadius: '50%', border: `1px solid ${timerColor}`, animation: 'ping 1.6s ease-out infinite' }} />
             </span>
           )}
         </button>
@@ -139,15 +138,43 @@ function NowTracking({ onPopOut, pomo, onPomoToggle, onPomoStartStop, onPomoSkip
 
   return (
     <div style={{ margin: 12, borderRadius: 'var(--r-md)', background: 'var(--bg-sunken)', border: '1px solid var(--line-1)', overflow: 'hidden' }}>
+
+      {/* ── Timer principal ── */}
+      {!isIdle && (
+        <div style={{ padding: '14px 12px 13px', borderBottom: '1px solid var(--line-1)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ position: 'relative', width: 8, height: 8, flex: 'none' }}>
+                <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: timerColor }} />
+                {running && <span style={{ position: 'absolute', inset: -3, borderRadius: '50%', border: `1px solid ${timerColor}`, animation: 'ping 1.6s ease-out infinite' }} />}
+              </span>
+              <span className="eyebrow" style={{ fontSize: 9.5, color: timerColor }}>{statusLabel}</span>
+            </div>
+            <button className="btn-icon" onClick={onPopOut} title="Abrir mini widget" style={{ padding: 4 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>
+            </button>
+          </div>
+          <span className="mono" style={{
+            display: 'block', textAlign: 'center',
+            fontSize: 38, fontWeight: 700, lineHeight: 1, letterSpacing: '-0.02em',
+            color: timerColor, transition: 'color 350ms ease-out',
+          }}>
+            {fmt.pad(hh)}:{fmt.pad(mm)}:{fmt.pad(ss)}
+          </span>
+        </div>
+      )}
+
+      {/* ── Pomodoro ── */}
       <PomodoroBar
         config={pomoConfig}
         active={pomo.active} phase={pomo.phase} secondsLeft={pomo.secondsLeft}
         done={pomo.done} running={pomo.running}
         onToggle={onPomoToggle} onStartStop={onPomoStartStop} onSkip={onPomoSkip} onReset={onPomoReset}
       />
+
+      {/* ── Informações de atividade ── */}
       <div style={{ padding: 12 }}>
         <ActivityBody
-          onPopOut={onPopOut}
           liveTracking={liveTracking}
           projects={projects}
           onToggle={onToggleTracking}
@@ -451,6 +478,37 @@ export default function App() {
     }).catch(() => {});
     return () => { alive = false; if (unlisten) unlisten(); };
   }, [trackingPayload]);
+
+  // Mantém o Rust sincronizado com o estado do timer (necessário para auto-abrir widget)
+  useEffect(() => {
+    if (!isTauri()) return;
+    import('@tauri-apps/api/core')
+      .then(({ invoke }) => invoke('set_tracking_active', { active: liveTracking.running }))
+      .catch(() => {});
+  }, [liveTracking.running]);
+
+  // Auto-abre o mini widget ao minimizar a janela principal com timer ativo
+  useEffect(() => {
+    if (!isTauri()) return;
+    let unlisten = null, alive = true;
+    (async () => {
+      try {
+        const [{ getCurrentWindow }, { invoke }] = await Promise.all([
+          import('@tauri-apps/api/window'),
+          import('@tauri-apps/api/core'),
+        ]);
+        const win = getCurrentWindow();
+        unlisten = await win.listen('tauri://resize', async () => {
+          if (!alive) return;
+          const minimized = await invoke('is_main_minimized').catch(() => false);
+          if (minimized && liveTrackingRef.current.running) {
+            invoke('open_mini_widget').catch(() => {});
+          }
+        });
+      } catch { /* fora do Tauri */ }
+    })();
+    return () => { alive = false; if (unlisten) unlisten(); };
+  }, []); // usa liveTrackingRef para evitar re-registro
 
   const POLL_MS = 4000;     // intervalo de verificação (igual ao Python: 4s)
   const IDLE_LIMIT = 120;   // segundos ociosos antes de pausar (igual ao Python)

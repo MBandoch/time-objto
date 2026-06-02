@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { RULE_TYPES, fmt } from '../data.js';
-import { uid } from '../utils/tracking.js';
+import { uid, isTauri } from '../utils/tracking.js';
 import { Dot } from '../components/ui.jsx';
 
 const SWATCH_COLORS = [
@@ -8,6 +8,9 @@ const SWATCH_COLORS = [
   'var(--p-vega)', 'var(--p-admin)',
   'var(--obj-amber)', 'var(--obj-clay)', 'var(--obj-success)',
 ];
+
+// Paleta de hex para projetos criados automaticamente (sem CSS vars)
+const AUTO_PALETTE = ['#4f8ef7', '#e05c5c', '#50c87a', '#f5a623', '#b358f7', '#1dada6', '#f7874f', '#5c9ce0'];
 
 // ── Rules Editor ──────────────────────────────────────────────────────────────
 
@@ -18,10 +21,10 @@ function RulesEditor({ rules, onChange, allRules }) {
 
   const validate = (val, t = type) => {
     if (!val) return null;
-    if (rules.some((r) => r.pattern === val && r.type === t)) return 'Already in this project';
+    if (rules.some((r) => r.pattern === val && r.type === t)) return 'Já neste projeto';
     const clash = allRules.find((r) => r.pattern === val && r.type === t);
-    if (clash) return `Already used in "${clash.projectName}"`;
-    if (t === 'regex') { try { new RegExp(val); } catch { return 'Invalid regular expression'; } }
+    if (clash) return `Já usada em "${clash.projectName}"`;
+    if (t === 'regex') { try { new RegExp(val); } catch { return 'Expressão regular inválida'; } }
     return null;
   };
 
@@ -66,7 +69,7 @@ function RulesEditor({ rules, onChange, allRules }) {
             </span>
           );
         })}
-        {rules.length === 0 && <span style={{ fontSize: 12, color: 'var(--fg-3)', fontStyle: 'italic', alignSelf: 'center' }}>No rules yet</span>}
+        {rules.length === 0 && <span style={{ fontSize: 12, color: 'var(--fg-3)', fontStyle: 'italic', alignSelf: 'center' }}>Nenhuma regra</span>}
       </div>
 
       <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start', flexWrap: 'wrap' }}>
@@ -86,9 +89,13 @@ function RulesEditor({ rules, onChange, allRules }) {
           <input
             value={pattern}
             onChange={(e) => checkLive(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } if (e.key === 'Escape') { setPattern(''); setErr(''); } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); add(); }
+              if (e.key === 'Escape') { e.stopPropagation(); setPattern(''); setErr(''); }
+            }}
             placeholder={RULE_TYPES.find((t) => t.value === type)?.example}
             spellCheck={false}
+            autoComplete="off"
             style={{
               width: '100%', boxSizing: 'border-box',
               fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--fg-1)',
@@ -98,12 +105,12 @@ function RulesEditor({ rules, onChange, allRules }) {
           {err && <div style={{ fontSize: 11, color: 'var(--obj-danger)', marginTop: 3 }}>{err}</div>}
         </div>
         <button className="btn btn-ghost btn-sm" onClick={add}
-          disabled={!pattern.trim() || !!err} style={{ flex: 'none' }}>Add</button>
+          disabled={!pattern.trim() || !!err} style={{ flex: 'none' }}>Adicionar</button>
       </div>
       <div style={{ fontSize: 10.5, color: 'var(--fg-3)', marginTop: 5 }}>
-        <kbd style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-sunken)', border: '1px solid var(--line-2)', padding: '1px 4px', borderRadius: 3 }}>Enter</kbd> to add
-        {' · '}Glob supports wildcards (<span className="mono" style={{ fontSize: 10 }}>*.skp</span>, <span className="mono" style={{ fontSize: 10 }}>Paulista*</span>)
-        {' · '}Regex uses JS syntax
+        <kbd style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-sunken)', border: '1px solid var(--line-2)', padding: '1px 4px', borderRadius: 3 }}>Enter</kbd> para adicionar
+        {' · '}Glob suporta curingas (<span className="mono" style={{ fontSize: 10 }}>*.skp</span>, <span className="mono" style={{ fontSize: 10 }}>Paulista*</span>)
+        {' · '}Regex usa sintaxe JS
       </div>
     </div>
   );
@@ -120,6 +127,11 @@ function NewProjectModal({ onClose, onSave, allRules, clients = [] }) {
   const [color, setColor] = useState(SWATCH_COLORS[0]);
   const [rules, setRules] = useState([]);
   const backdropRef = useRef(null);
+  const nameRef = useRef(null);
+
+  useEffect(() => {
+    nameRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     const h = (e) => { if (e.key === 'Escape') onClose(); };
@@ -157,8 +169,8 @@ function NewProjectModal({ onClose, onSave, allRules, clients = [] }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 14px', borderBottom: '1px solid var(--line-1)', flex: 'none' }}>
           <div>
-            <div className="eyebrow" style={{ fontSize: 9.5, marginBottom: 2 }}>Projects</div>
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--fg-1)' }}>New project</h2>
+            <div className="eyebrow" style={{ fontSize: 9.5, marginBottom: 2 }}>Projetos</div>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--fg-1)' }}>Novo projeto</h2>
           </div>
           <button className="btn-icon" onClick={onClose}>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
@@ -167,8 +179,9 @@ function NewProjectModal({ onClose, onSave, allRules, clients = [] }) {
 
         <div className="scroll" style={{ overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {field('Project name',
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Paulista 1306" autoFocus
+            {field('Nome do projeto',
+              <input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Paulista 1306"
+                autoComplete="off"
                 style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg-1)', background: 'var(--bg)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '9px 11px', outline: 'none' }} />
             )}
             {field('Cliente (opcional)',
@@ -196,11 +209,11 @@ function NewProjectModal({ onClose, onSave, allRules, clients = [] }) {
               }}>
                 {billable && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--accent-on,#fff)" strokeWidth="3.2" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>}
               </span>
-              Billable
+              Faturável
             </button>
             {billable && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 13, color: 'var(--fg-3)' }}>Rate</span>
+                <span style={{ fontSize: 13, color: 'var(--fg-3)' }}>Taxa</span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', overflow: 'hidden', background: 'var(--bg)' }}>
                   <span style={{ padding: '7px 10px', fontSize: 13, color: 'var(--fg-3)', borderRight: '1px solid var(--line-1)', background: 'var(--bg-sunken)' }}>R$</span>
                   <input type="number" value={rate} onChange={(e) => setRate(Number(e.target.value))} min={1} max={9999}
@@ -211,7 +224,7 @@ function NewProjectModal({ onClose, onSave, allRules, clients = [] }) {
             )}
           </div>
 
-          {field('Colour',
+          {field('Cor',
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {SWATCH_COLORS.map((c) => (
                 <button key={c} onClick={() => setColor(c)} style={{
@@ -228,7 +241,7 @@ function NewProjectModal({ onClose, onSave, allRules, clients = [] }) {
 
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-2)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Auto-detection rules</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-2)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Regras de detecção automática</label>
               <span style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>optional</span>
             </div>
             <div style={{ padding: 14, background: 'var(--bg-sunken)', borderRadius: 'var(--r-md)', border: '1px solid var(--line-1)' }}>
@@ -238,8 +251,8 @@ function NewProjectModal({ onClose, onSave, allRules, clients = [] }) {
         </div>
 
         <div style={{ padding: '14px 20px', borderTop: '1px solid var(--line-1)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flex: 'none' }}>
-          <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={save} disabled={!valid} style={{ opacity: valid ? 1 : 0.45 }}>Create project</button>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={save} disabled={!valid} style={{ opacity: valid ? 1 : 0.45 }}>Criar projeto</button>
         </div>
       </div>
     </div>
@@ -277,8 +290,8 @@ function MergeModal({ projects, onClose, onMerge }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 14px', borderBottom: '1px solid var(--line-1)' }}>
           <div>
-            <div className="eyebrow" style={{ fontSize: 9.5, marginBottom: 2 }}>Projects</div>
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--fg-1)' }}>Merge projects</h2>
+            <div className="eyebrow" style={{ fontSize: 9.5, marginBottom: 2 }}>Projetos</div>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--fg-1)' }}>Mesclar projetos</h2>
           </div>
           <button className="btn-icon" onClick={onClose}>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
@@ -287,7 +300,7 @@ function MergeModal({ projects, onClose, onMerge }) {
 
         <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Sources — select to merge</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Origem — selecionar para mesclar</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {projects.map((p) => {
                 const sel = sources.includes(p.id);
@@ -313,7 +326,7 @@ function MergeModal({ projects, onClose, onMerge }) {
           </div>
 
           <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Merge into</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Mesclar em</div>
             <select value={targetId} onChange={(e) => setTargetId(e.target.value)} style={{
               width: '100%', fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg-1)',
               background: 'var(--bg)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)',
@@ -325,16 +338,16 @@ function MergeModal({ projects, onClose, onMerge }) {
 
           {canMerge && (
             <div style={{ padding: '10px 12px', background: 'var(--bg-sunken)', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-1)', fontSize: 12.5, color: 'var(--fg-2)', lineHeight: 1.5 }}>
-              Sessions and rules from <strong style={{ color: 'var(--fg-1)' }}>{validSources.map((id) => projects.find((p) => p.id === id)?.name).join(', ')}</strong> will be moved to <strong style={{ color: 'var(--fg-1)' }}>{projects.find((p) => p.id === targetId)?.name}</strong>. Source projects are removed.
+              Sessões e regras de <strong style={{ color: 'var(--fg-1)' }}>{validSources.map((id) => projects.find((p) => p.id === id)?.name).join(', ')}</strong> serão movidas para <strong style={{ color: 'var(--fg-1)' }}>{projects.find((p) => p.id === targetId)?.name}</strong>. Os projetos de origem serão removidos.
             </div>
           )}
         </div>
 
         <div style={{ padding: '14px 20px', borderTop: '1px solid var(--line-1)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
-          <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary" onClick={() => { onMerge(validSources, targetId); onClose(); }}
             disabled={!canMerge} style={{ opacity: canMerge ? 1 : 0.4 }}>
-            Merge {canMerge ? validSources.length : ''} → {projects.find((p) => p.id === targetId)?.name}
+            Mesclar {canMerge ? validSources.length : ''} → {projects.find((p) => p.id === targetId)?.name}
           </button>
         </div>
       </div>
@@ -347,12 +360,108 @@ function MergeModal({ projects, onClose, onMerge }) {
 function ProjectRulesPanel({ project, onChange, allRules }) {
   return (
     <div style={{ borderTop: '1px solid var(--line-1)', paddingTop: 14, marginTop: 4 }}>
-      <div className="eyebrow" style={{ fontSize: 9.5, marginBottom: 10 }}>Auto-detection rules</div>
+      <div className="eyebrow" style={{ fontSize: 9.5, marginBottom: 10 }}>Regras de detecção automática</div>
       <RulesEditor
         rules={project.rules}
         onChange={(newRules) => onChange({ ...project, rules: newRules })}
         allRules={allRules}
       />
+    </div>
+  );
+}
+
+// ── Import Folder Modal ───────────────────────────────────────────────────────
+
+function ImportFolderModal({ folders, existingNames, onClose, onImport }) {
+  const [selected, setSelected] = useState(
+    () => new Set(folders.filter((name) => !existingNames.has(name)))
+  );
+
+  const toggle = (name) => setSelected((s) => {
+    const next = new Set(s);
+    if (next.has(name)) next.delete(name); else next.add(name);
+    return next;
+  });
+
+  const toCreate = [...selected].filter((name) => !existingNames.has(name));
+
+  const confirm = () => {
+    const offset = existingNames.size;
+    onImport(toCreate.map((name, i) => ({
+      id: uid(), name, client: '', clientId: null,
+      billable: false, rate: 0, rules: [],
+      color: AUTO_PALETTE[(offset + i) % AUTO_PALETTE.length],
+    })));
+    onClose();
+  };
+
+  useEffect(() => {
+    const h = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 80,
+      background: 'rgba(20,20,19,0.48)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      animation: 'fadeIn 120ms ease-out',
+    }}>
+      <div className="card" style={{
+        width: 'min(92vw, 460px)', maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+        boxShadow: 'var(--shadow-3)', borderRadius: 'var(--r-lg)', animation: 'popIn 140ms ease-out',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 14px', borderBottom: '1px solid var(--line-1)', flex: 'none' }}>
+          <div>
+            <div className="eyebrow" style={{ fontSize: 9.5, marginBottom: 2 }}>Importar de pasta</div>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--fg-1)' }}>
+              {folders.length} subpasta{folders.length !== 1 ? 's' : ''} encontrada{folders.length !== 1 ? 's' : ''}
+            </h2>
+          </div>
+          <button className="btn-icon" onClick={onClose}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <div className="scroll" style={{ overflowY: 'auto', padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 0 }}>
+          {folders.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--fg-3)', fontSize: 13 }}>
+              Nenhuma subpasta encontrada.
+            </div>
+          ) : folders.map((name) => {
+            const exists = existingNames.has(name);
+            const isSelected = selected.has(name);
+            return (
+              <label key={name} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                border: '1px solid ' + (isSelected && !exists ? 'var(--accent)' : 'var(--line-1)'),
+                borderRadius: 'var(--r-sm)', cursor: exists ? 'default' : 'pointer',
+                background: isSelected && !exists ? 'var(--bg-sunken)' : 'transparent',
+                opacity: exists ? 0.5 : 1, transition: '120ms',
+              }}>
+                <input type="checkbox" checked={isSelected && !exists} disabled={exists}
+                  onChange={() => !exists && toggle(name)}
+                  style={{ accentColor: 'var(--accent)', width: 15, height: 15, flex: 'none' }} />
+                <span className="mono" style={{ fontSize: 13, color: 'var(--fg-1)', flex: 1 }}>{name}</span>
+                {exists && <span className="eyebrow" style={{ fontSize: 9, color: 'var(--fg-3)' }}>já existe</span>}
+              </label>
+            );
+          })}
+        </div>
+
+        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--line-1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: 'none' }}>
+          <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>
+            {toCreate.length > 0 ? `${toCreate.length} projeto${toCreate.length > 1 ? 's' : ''} a criar` : 'Nenhum selecionado'}
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancelar</button>
+            <button className="btn btn-primary" onClick={confirm}
+              disabled={toCreate.length === 0} style={{ opacity: toCreate.length > 0 ? 1 : 0.4 }}>
+              Criar {toCreate.length > 0 ? toCreate.length : ''} projeto{toCreate.length !== 1 ? 's' : ''}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -372,6 +481,22 @@ export function Projects({ projects, setProjects, clients = [], tags = [], setTa
   const [expanded, setExpanded] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showMerge, setShowMerge] = useState(false);
+  const [importFolders, setImportFolders] = useState(null);
+
+  const handleImportFolder = async () => {
+    try {
+      const [{ open }, { invoke }] = await Promise.all([
+        import('@tauri-apps/plugin-dialog'),
+        import('@tauri-apps/api/core'),
+      ]);
+      const folder = await open({ directory: true, multiple: false, title: 'Selecionar pasta de projetos' });
+      if (!folder) return;
+      const subfolders = await invoke('list_subfolders', { path: folder });
+      setImportFolders(subfolders);
+    } catch (err) {
+      console.error('Erro ao importar pasta:', err);
+    }
+  };
 
   const allRulesFor = (excludeId) =>
     projects.filter((p) => p.id !== excludeId)
@@ -409,16 +534,22 @@ export function Projects({ projects, setProjects, clients = [], tags = [], setTa
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
           <div>
             <div className="eyebrow">{projects.length} ativos · {clients.length} clientes</div>
-            <h1 className="disp" style={{ fontSize: 40, margin: '4px 0 0' }}>Projects</h1>
+            <h1 className="disp" style={{ fontSize: 40, margin: '4px 0 0' }}>Projetos</h1>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {projects.length >= 2 && (
               <button className="btn btn-ghost btn-sm" onClick={() => setShowMerge(true)}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ marginRight: 5 }}><path d="M8 6H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3M16 6h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-3M12 2v20M12 2l-4 4M12 2l4 4" /></svg>
-                Merge
+                Mesclar
               </button>
             )}
-            <button className="btn btn-primary" onClick={() => setShowModal(true)}>＋ New project</button>
+            {isTauri() && (
+              <button className="btn btn-ghost btn-sm" onClick={handleImportFolder}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ marginRight: 5 }}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
+                Importar pasta
+              </button>
+            )}
+            <button className="btn btn-primary" onClick={() => setShowModal(true)}>＋ Novo projeto</button>
           </div>
         </div>
 
@@ -441,7 +572,7 @@ export function Projects({ projects, setProjects, clients = [], tags = [], setTa
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--fg-1)' }}>{p.name}</h3>
                       <span className="chip" style={{ background: p.billable ? 'transparent' : 'var(--bg-sunken)', borderColor: 'var(--line-2)', color: p.billable ? 'var(--obj-success)' : 'var(--fg-3)', cursor: 'default' }}>
-                        {p.billable ? `R$ ${p.rate}/h` : 'Internal'}
+                        {p.billable ? `R$ ${p.rate}/h` : 'Interno'}
                       </span>
                     </div>
                     <div style={{ fontSize: 12.5, color: 'var(--fg-3)', margin: '3px 0 10px' }}>{clientName}</div>
@@ -452,7 +583,7 @@ export function Projects({ projects, setProjects, clients = [], tags = [], setTa
                     }}
                       onMouseEnter={(e) => e.currentTarget.style.color = 'var(--fg-1)'}
                       onMouseLeave={(e) => e.currentTarget.style.color = 'var(--fg-2)'}>
-                      <span className="eyebrow" style={{ fontSize: 9, color: 'var(--fg-3)' }}>Rules</span>
+                      <span className="eyebrow" style={{ fontSize: 9, color: 'var(--fg-3)' }}>Regras</span>
                       {p.rules.length > 0
                         ? p.rules.slice(0, 3).map((r, i) => {
                           const rt = RULE_TYPES.find((t) => t.value === r.type);
@@ -463,7 +594,7 @@ export function Projects({ projects, setProjects, clients = [], tags = [], setTa
                             </span>
                           );
                         })
-                        : <span style={{ fontSize: 11.5, color: 'var(--fg-3)', fontStyle: 'italic' }}>None</span>}
+                        : <span style={{ fontSize: 11.5, color: 'var(--fg-3)', fontStyle: 'italic' }}>Nenhuma</span>}
                       {p.rules.length > 3 && <span style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>+{p.rules.length - 3}</span>}
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: '160ms ease-out' }}><polyline points="6 9 12 15 18 9" /></svg>
                     </button>
@@ -503,6 +634,15 @@ export function Projects({ projects, setProjects, clients = [], tags = [], setTa
           projects={projects}
           onClose={() => setShowMerge(false)}
           onMerge={mergeProjects}
+        />
+      )}
+
+      {importFolders !== null && (
+        <ImportFolderModal
+          folders={importFolders}
+          existingNames={new Set(projects.map((p) => p.name))}
+          onClose={() => setImportFolders(null)}
+          onImport={(newProjects) => setProjects((ps) => [...ps, ...newProjects])}
         />
       )}
     </div>

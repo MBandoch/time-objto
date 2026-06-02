@@ -83,8 +83,8 @@ export function ManualEntryModal({ projects, onClose, onSave }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 14px', borderBottom: '1px solid var(--line-1)' }}>
           <div>
-            <div className="eyebrow" style={{ fontSize: 9.5, marginBottom: 2 }}>Today</div>
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--fg-1)' }}>Add manual entry</h2>
+            <div className="eyebrow" style={{ fontSize: 9.5, marginBottom: 2 }}>Hoje</div>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--fg-1)' }}>Adicionar entrada manual</h2>
           </div>
           <button className="btn-icon" onClick={onClose}>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
@@ -92,25 +92,25 @@ export function ManualEntryModal({ projects, onClose, onSave }) {
         </div>
 
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {field('Date',
+          {field('Data',
             <input {...inp({ type: 'date', value: date, onChange: (e) => setDate(e.target.value) })} />
           )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'end' }}>
-            {field('From',
+            {field('Início',
               <input {...inp({ type: 'time', value: from, onChange: (e) => setFrom(e.target.value) })} />
             )}
-            {field('To',
+            {field('Fim',
               <input {...inp({ type: 'time', value: to, onChange: (e) => setTo(e.target.value) })} />
             )}
             <div style={{ paddingBottom: 2 }}>
               {durMin !== null
                 ? <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-1)', whiteSpace: 'nowrap' }}>{fmt.dur(durMin)}</span>
-                : <span style={{ fontSize: 12, color: 'var(--obj-danger)' }}>invalid</span>}
+                : <span style={{ fontSize: 12, color: 'var(--obj-danger)' }}>inválido</span>}
             </div>
           </div>
 
-          {field('Project',
+          {field('Projeto',
             <select value={projectId} onChange={(e) => setProjectId(e.target.value)} style={{
               fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg-1)',
               background: 'var(--bg)', border: '1px solid var(--line-2)',
@@ -130,7 +130,7 @@ export function ManualEntryModal({ projects, onClose, onSave }) {
                 {APP_OPTIONS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             )}
-            {field('Title / description',
+            {field('Título / descrição',
               <input {...inp({ value: title, onChange: (e) => setTitle(e.target.value), onKeyDown: (e) => { if (e.key === 'Enter' && valid) save(); }, placeholder: 'Ex: Paulista1306_facade.skp', autoFocus: true })} />
             )}
           </div>
@@ -139,15 +139,15 @@ export function ManualEntryModal({ projects, onClose, onSave }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', background: 'var(--bg-sunken)', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-1)' }}>
               <Dot color={projects.find((p) => p.id === projectId)?.color} />
               <span style={{ fontSize: 13, color: 'var(--fg-2)' }}>
-                {durMin ? fmt.dur(durMin) : '—'} will be added to <strong style={{ color: 'var(--fg-1)' }}>{projects.find((p) => p.id === projectId)?.name}</strong> as confirmed
+                {durMin ? fmt.dur(durMin) : '—'} será adicionado a <strong style={{ color: 'var(--fg-1)' }}>{projects.find((p) => p.id === projectId)?.name}</strong> como confirmado
               </span>
             </div>
           )}
         </div>
 
         <div style={{ padding: '14px 20px', borderTop: '1px solid var(--line-1)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
-          <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={save} disabled={!valid} style={{ opacity: valid ? 1 : 0.45 }}>Add entry</button>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={save} disabled={!valid} style={{ opacity: valid ? 1 : 0.45 }}>Adicionar</button>
         </div>
       </div>
     </div>
