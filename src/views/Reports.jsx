@@ -151,6 +151,17 @@ export function Reports({ events, projects, clients }) {
             </div>
           )}
 
+          {projects.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--fg-3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Projeto</label>
+              <select value={filterProject} onChange={e => setFilterProject(e.target.value)}
+                style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg-1)', background: 'var(--bg)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '6px 10px', outline: 'none', cursor: 'pointer' }}>
+                <option value="all">Todos</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+          )}
+
           {/* Search */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 1, minWidth: 180 }}>
             <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--fg-3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Buscar</label>

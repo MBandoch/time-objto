@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { APPS, fmt } from '../data.js';
+import { uid } from '../utils/tracking.js';
 import { Dot } from './ui.jsx';
 
 const APP_OPTIONS = Object.entries(APPS).map(([id, a]) => ({ id, name: a.name }));
@@ -37,7 +38,7 @@ export function ManualEntryModal({ projects, onClose, onSave }) {
     const [y, mo, d] = date.split('-').map(Number);
     const label = new Date(y, mo - 1, d).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' });
     onSave({
-      id: 'ev' + Date.now(),
+      id: uid(),
       start: fromMin,
       end: toMin,
       dur: durMin,

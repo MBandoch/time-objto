@@ -685,7 +685,7 @@ export default function App() {
               {view === 'today'     && <MainView mode={t.mode} setMode={setMode} events={events} actions={actions} stats={stats} projects={projects} monitorAll={monitorAll} onToggleMonitor={() => setMonitorAll(v => !v)} liveTracking={liveTracking} tags={tags} setTags={setTags} />}
               {view === 'review'    && <Review events={events} actions={actions} projects={projects} tags={tags} setTags={setTags} />}
               {view === 'dashboard' && <Dashboard projects={projects} events={events} />}
-              {view === 'projects'  && <Projects projects={projects} setProjects={setProjects} clients={clients} tags={tags} setTags={setTags} />}
+              {view === 'projects'  && <Projects projects={projects} setProjects={setProjects} clients={clients} tags={tags} setTags={setTags} events={events} />}
               {view === 'clients'   && <Clients clients={clients} setClients={setClients} projects={projects} />}
               {view === 'reports'   && <Reports events={events} projects={projects} clients={clients} />}
               {view === 'goals'     && <Goals goals={goals} setGoals={setGoals} events={events} projects={projects} />}

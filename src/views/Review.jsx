@@ -1,15 +1,16 @@
-import { useState } from 'react';
-import { projById, APPS, fmt } from '../data.js';
+import { useState, useMemo } from 'react';
+import { APPS, fmt } from '../data.js';
 import { AppTile, Dot, ProjectPicker } from '../components/ui.jsx';
 
 function patOf(ev) {
-  const m = ev.title.match(/\.([a-z0-9]+)$/i);
+  const title = ev.title || ev.doc || '';
+  const m = title.match(/\.([a-z0-9]+)$/i);
   if (m) return '*.' + m[1].toLowerCase();
-  if (/^localhost/i.test(ev.title)) return 'localhost';
-  return APPS[ev.app]?.name || ev.app;
+  if (/^localhost/i.test(title)) return 'localhost';
+  return APPS[ev.app]?.name || ev.app || '—';
 }
 
-function GroupCard({ group, actions }) {
+function GroupCard({ group, actions, projects, projById }) {
   const [open, setOpen] = useState(false);
   const [rule, setRule] = useState(true);
   const sugg = group.project ? projById[group.project] : null;
@@ -34,7 +35,7 @@ function GroupCard({ group, actions }) {
         {group.items.map((e) => (
           <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--fg-2)' }}>
             <span className="mono" style={{ fontSize: 10.5, color: 'var(--fg-3)', width: 38, flex: 'none' }}>{fmt.clock(e.start)}</span>
-            <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.title}</span>
+            <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.title || e.doc || '—'}</span>
             <span className="mono" style={{ fontSize: 10.5, color: 'var(--fg-3)' }}>{fmt.dur(e.dur)}</span>
           </div>
         ))}
@@ -63,13 +64,14 @@ function GroupCard({ group, actions }) {
           <button className="btn btn-primary btn-sm" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setOpen(true)}>Assign group…</button>
         )}
         <button className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}>Change</button>
-        {open && <ProjectPicker value={group.project} align="right" width={260} onChange={(pid) => assignAll(pid)} onClose={() => setOpen(false)} />}
+        {open && <ProjectPicker value={group.project} projects={projects} align="right" width={260} onChange={(pid) => assignAll(pid)} onClose={() => setOpen(false)} />}
       </div>
     </div>
   );
 }
 
-export function Review({ events, actions }) {
+export function Review({ events, actions, projects = [] }) {
+  const projById = useMemo(() => Object.fromEntries(projects.map((p) => [p.id, p])), [projects]);
   const queue = events.filter((e) => e.status !== 'confirmed');
   const map = new Map();
   queue.forEach((e) => {
@@ -107,7 +109,7 @@ export function Review({ events, actions }) {
           </div>
         ) : (
           <div className="col-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, alignItems: 'start' }}>
-            {groups.map((g) => <GroupCard key={g.key} group={g} actions={actions} />)}
+            {groups.map((g) => <GroupCard key={g.key} group={g} actions={actions} projects={projects} projById={projById} />)}
           </div>
         )}
       </div>

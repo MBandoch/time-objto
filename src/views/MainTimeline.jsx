@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { fmt } from '../data.js';
 import { ProjectPicker } from '../components/ui.jsx';
 import { TagPicker, TagChips } from '../components/TagPicker.jsx';
@@ -201,7 +201,7 @@ function EditModal({ ev, projects, actions, onClose, tags = [], setTags }) {
 }
 
 // ── Event card ────────────────────────────────────────────────────────────────
-function EventCard({ ev, projects, actions, toY, onEdit }) {
+function EventCard({ ev, projects, projById, actions, toY, onEdit }) {
   const [picking,  setPicking]  = useState(false);
   const [hovered,  setHovered]  = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -212,7 +212,7 @@ function EventCard({ ev, projects, actions, toY, onEdit }) {
   const compact  = height < 54;
   const spacious = height > 92;
 
-  const p        = projects.find(pr => pr.id === ev.project);
+  const p        = ev.project ? projById[ev.project] : null;
   const barColor = ev.status === 'unsorted' ? 'var(--obj-amber)'
     : ev.status === 'suggested' ? 'var(--accent)'
     : (p?.color || 'var(--obj-success)');
@@ -381,6 +381,7 @@ function EmptyState({ onStartTracking }) {
 export function MainTimeline({ events, actions, projects = [], tags = [], setTags, onStartTracking }) {
   const [filter,       setFilter]       = useState('all'); // 'all' | 'review'
   const [editingEvent, setEditingEvent] = useState(null);
+  const projById = useMemo(() => Object.fromEntries(projects.map(p => [p.id, p])), [projects]);
 
   if (!events.length) return <EmptyState onStartTracking={onStartTracking} />;
 
@@ -443,7 +444,7 @@ export function MainTimeline({ events, actions, projects = [], tags = [], setTag
             <div style={{ position: 'absolute', top: 0, bottom: 0, left: 58, right: 0 }}>
               {visible.map(ev => (
                 <EventCard
-                  key={ev.id} ev={ev} projects={projects} actions={actions}
+                  key={ev.id} ev={ev} projects={projects} projById={projById} actions={actions}
                   toY={toY} onEdit={setEditingEvent}
                 />
               ))}

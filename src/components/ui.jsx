@@ -31,8 +31,8 @@ export function Dot({ color, size = 9 }) {
   return <span style={{ width: size, height: size, borderRadius: '50%', background: color, flex: 'none', display: 'inline-block' }} />;
 }
 
-export function ProjectChip({ projectId, onClick, suggested }) {
-  const p = projById[projectId];
+export function ProjectChip({ projectId, project, onClick, suggested }) {
+  const p = project || projById[projectId];
   if (!p) return null;
   return (
     <button className="chip" onClick={onClick} style={{
@@ -57,7 +57,8 @@ export function ProjectPicker({ value, onChange, onClose, align = 'left', width 
     document.addEventListener('keydown', k);
     return () => { document.removeEventListener('mousedown', h); document.removeEventListener('keydown', k); };
   }, [onClose]);
-  const list = projects.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()) || p.client.toLowerCase().includes(q.toLowerCase()));
+  const ql = q.toLowerCase();
+  const list = projects.filter((p) => (p.name || '').toLowerCase().includes(ql) || (p.client || '').toLowerCase().includes(ql));
   const vpos = dir === 'up' ? { bottom: 'calc(100% + 6px)' } : { top: 'calc(100% + 6px)' };
   return (
     <div ref={ref} className="card scroll" style={{

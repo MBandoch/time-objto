@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
-import { WEEK_BY_PROJECT, RULE_TYPES, fmt } from '../data.js';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { RULE_TYPES, fmt } from '../data.js';
+import { uid } from '../utils/tracking.js';
 import { Dot } from '../components/ui.jsx';
 
 const SWATCH_COLORS = [
@@ -133,7 +134,7 @@ function NewProjectModal({ onClose, onSave, allRules, clients = [] }) {
     const resolvedClient = clients.length > 0
       ? (clients.find(c => c.id === clientId)?.name || '')
       : clientText.trim();
-    onSave({ id: 'p' + Date.now(), name: name.trim(), client: resolvedClient, clientId: clientId || null, billable, rate: billable ? rate : 0, color, rules });
+    onSave({ id: uid(), name: name.trim(), client: resolvedClient, clientId: clientId || null, billable, rate: billable ? rate : 0, color, rules });
     onClose();
   };
 
@@ -358,8 +359,16 @@ function ProjectRulesPanel({ project, onChange, allRules }) {
 
 // ── Projects Screen ───────────────────────────────────────────────────────────
 
-export function Projects({ projects, setProjects, clients = [], tags = [], setTags }) {
-  const weekMap = Object.fromEntries(WEEK_BY_PROJECT.map((r) => [r.id, r.min]));
+export function Projects({ projects, setProjects, clients = [], tags = [], setTags, events = [] }) {
+  // Minutos rastreados por projeto (eventos guardam minuto-do-dia, sem data).
+  const minByProject = useMemo(() => {
+    const m = {};
+    for (const e of events) {
+      if (!e.project) continue;
+      m[e.project] = (m[e.project] || 0) + e.dur;
+    }
+    return m;
+  }, [events]);
   const [expanded, setExpanded] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showMerge, setShowMerge] = useState(false);
@@ -415,7 +424,7 @@ export function Projects({ projects, setProjects, clients = [], tags = [], setTa
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {projects.map((p) => {
-            const min = weekMap[p.id] || 0;
+            const min = minByProject[p.id] || 0;
             const isOpen = expanded === p.id;
             const otherRules = allRulesFor(p.id);
             const valueR = p.billable && min > 0 ? Math.round((min / 60) * p.rate) : 0;
@@ -462,7 +471,7 @@ export function Projects({ projects, setProjects, clients = [], tags = [], setTa
 
                   <div style={{ textAlign: 'right', flex: 'none' }}>
                     <div className="disp" style={{ fontSize: 30, color: 'var(--fg-1)', lineHeight: 1 }}>{fmt.hrs(min)}</div>
-                    <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>this week</div>
+                    <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>rastreado</div>
                     {p.billable && min > 0 && (
                       <div className="mono" style={{ fontSize: 12, color: 'var(--obj-success)', marginTop: 4 }}>
                         R$ {valueR.toLocaleString('pt-BR')}
