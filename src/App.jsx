@@ -597,7 +597,9 @@ export default function App() {
   const bulkAssign = (ids, project) => setEvents(es => es.map(e => ids.includes(e.id) ? { ...e, project, status: project ? 'confirmed' : 'unsorted', confidence: project ? 'high' : e.confidence } : e));
   const bulkConfirm = (ids) => setEvents(es => { const next = es.map(e => ids.includes(e.id) ? { ...e, status: 'confirmed' } : e); maybeSync(next.filter(e => ids.includes(e.id))); return next; });
   const addManualEntry = (ev) => { setEvents(es => [...es, ev]); maybeSync([ev]); };
-  const actions = { assign, confirm, confirmAll, bulkAssign, bulkConfirm, addManualEntry, openManualEntry: () => setShowManualEntry(true) };
+  const deleteEvent    = (id) => setEvents(es => es.filter(e => e.id !== id));
+  const editEvent      = (id, patch) => setEvents(es => es.map(e => e.id === id ? { ...e, ...patch } : e));
+  const actions = { assign, confirm, confirmAll, bulkAssign, bulkConfirm, addManualEntry, deleteEvent, editEvent, openManualEntry: () => setShowManualEntry(true) };
 
   const projByIdMap = useMemo(() => Object.fromEntries(projects.map(p => [p.id, p])), [projects]);
 
