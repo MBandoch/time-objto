@@ -1,6 +1,7 @@
 use tauri::{
     Manager,
     WebviewUrl, WebviewWindowBuilder,
+    image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
 };
@@ -185,13 +186,19 @@ pub fn run() {
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;
 
+            let tray_icon = Image::from_bytes(include_bytes!("../icons/tray-icon.png"))
+                .expect("tray icon");
+
             TrayIconBuilder::new()
+                .icon(tray_icon)
+                .icon_as_template(true)
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::Click { button: MouseButton::Left, .. } = event {
                         let app = tray.app_handle();
                         if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.unminimize();
                             let _ = w.show();
                             let _ = w.set_focus();
                         }
@@ -201,6 +208,7 @@ pub fn run() {
                     "quit" => app.exit(0),
                     "show" => {
                         if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.unminimize();
                             let _ = w.show();
                             let _ = w.set_focus();
                         }
