@@ -127,6 +127,15 @@ body:has(.app.dark) { background: #242422; }
 .screen-pad { padding: 26px; }
 .bulk-bar { max-width: calc(100% - 24px); }
 
+/* Janela desktop estreita — sidebar já colapsa via JS em ≤1024px */
+@media (max-width: 1040px) {
+  .day-header { padding: 14px 18px 12px; }
+  .day-header h1 { font-size: 32px !important; }
+  .tl-scroll { padding: 12px 18px 80px; }
+  .screen-inner { padding: 18px 18px 48px !important; }
+  .screen-inner h1.disp { font-size: 32px !important; }
+}
+
 @media (max-width: 760px) {
   .day-header { padding: 14px 16px 12px; }
   .day-header h1 { font-size: 30px !important; }

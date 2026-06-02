@@ -17,7 +17,7 @@
         "title": "OBJ_TO Time Tracker",
         "width": 1340,
         "height": 880,
-        "minWidth": 860,
+        "minWidth": 720,
         "minHeight": 600,
         "decorations": true,
         "resizable": true,

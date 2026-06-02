@@ -173,7 +173,7 @@ function Sidebar({ nav, view, onNavigate, collapsed, onToggleCollapse, pomoConfi
         )}
       </div>
 
-      <div style={{ padding: collapsed ? '8px 10px' : '8px 12px 14px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <div style={{ padding: collapsed ? '8px 10px' : '8px 12px 14px', display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {nav.map((n) => {
           const active = view === n.id;
           return (
@@ -198,7 +198,7 @@ function Sidebar({ nav, view, onNavigate, collapsed, onToggleCollapse, pomoConfi
         })}
       </div>
 
-      <div style={{ marginTop: 'auto' }}>
+      <div style={{ flex: 'none' }}>
         <NowTracking
           onPopOut={onPopOut}
           pomo={pomo} onPomoToggle={onPomoToggle} onPomoStartStop={onPomoStartStop}
@@ -264,13 +264,20 @@ export default function App() {
 
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isNarrow, setIsNarrow] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 760px)');
-    const on = () => setIsMobile(mq.matches);
-    on();
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
+    const mqMobile = window.matchMedia('(max-width: 760px)');
+    const mqNarrow = window.matchMedia('(max-width: 1024px)');
+    const onMobile = () => setIsMobile(mqMobile.matches);
+    const onNarrow = () => setIsNarrow(mqNarrow.matches);
+    onMobile(); onNarrow();
+    mqMobile.addEventListener('change', onMobile);
+    mqNarrow.addEventListener('change', onNarrow);
+    return () => {
+      mqMobile.removeEventListener('change', onMobile);
+      mqNarrow.removeEventListener('change', onNarrow);
+    };
   }, []);
 
   const [username, setUsername] = useState(() => localStorage.getItem('objto_username') || '');
@@ -584,7 +591,7 @@ export default function App() {
   };
 
   const brandClass = t.brand && t.brand !== 'objto' ? ' brand-' + t.brand : '';
-  const sidebarCollapsed = collapsed && !isMobile;
+  const sidebarCollapsed = !isMobile && (collapsed || isNarrow);
   const currentLabel = (nav.find(n => n.id === view) || {}).label || '';
 
   const pomoFocusBg = pomo.active && pomo.phase === 'focus' && !pomo.bgFlash;
@@ -607,7 +614,7 @@ export default function App() {
           ...(isMobile
             ? { position: 'absolute', top: 0, bottom: 0, left: 0, zIndex: 60, width: 232, transform: drawerOpen ? 'none' : 'translateX(-100%)', transition: 'transform 220ms ease-out', boxShadow: drawerOpen ? 'var(--shadow-3)' : 'none' }
             : { width: sidebarCollapsed ? 64 : 222, transition: 'width 180ms ease-out' }),
-          flex: 'none', borderRight: '1px solid var(--line-1)', background: 'var(--bg-elev)', display: 'flex', flexDirection: 'column',
+          flex: 'none', borderRight: '1px solid var(--line-1)', background: 'var(--bg-elev)', display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}>
           <Sidebar
             nav={nav} view={view}
