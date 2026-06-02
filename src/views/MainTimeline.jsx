@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { fmt } from '../data.js';
 import { ProjectPicker } from '../components/ui.jsx';
+import { TagPicker, TagChips } from '../components/TagPicker.jsx';
 
 const HOUR_PX = 80;
 
@@ -57,18 +58,19 @@ function StatusPip({ status }) {
 }
 
 // ── Edit modal ────────────────────────────────────────────────────────────────
-function EditModal({ ev, projects, actions, onClose }) {
+function EditModal({ ev, projects, actions, onClose, tags = [], setTags }) {
   const endMin = ev.end || ev.start + ev.dur;
   const [startVal, setStartVal] = useState(toTimeInput(ev.start));
   const [endVal,   setEndVal]   = useState(toTimeInput(endMin));
   const [title,    setTitle]    = useState(ev.doc || ev.title || '');
+  const [evTags,   setEvTags]   = useState(ev.tags || []);
   const [picking,  setPicking]  = useState(false);
 
   const save = () => {
     const s = parseClock(startVal);
     const e = parseClock(endVal);
     if (s !== null && e !== null && e > s) {
-      actions.editEvent(ev.id, { start: s, end: e, dur: e - s, doc: title, title });
+      actions.editEvent(ev.id, { start: s, end: e, dur: e - s, doc: title, title, tags: evTags });
     }
     onClose();
   };
@@ -130,6 +132,22 @@ function EditModal({ ev, projects, actions, onClose }) {
               placeholder={appLabel(ev.app)}
               style={inputStyle}
             />
+          </div>
+
+          {/* Tags */}
+          <div>
+            <label style={labelStyle}>Tags</label>
+            <TagPicker
+              value={evTags}
+              tags={tags}
+              onChange={setEvTags}
+              onCreateTag={t => setTags(ts => [...ts, t])}
+            />
+            {evTags.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <TagChips tagIds={evTags} tags={tags} max={10} />
+              </div>
+            )}
           </div>
 
           {/* Project */}
@@ -360,7 +378,7 @@ function EmptyState({ onStartTracking }) {
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
-export function MainTimeline({ events, actions, projects = [], onStartTracking }) {
+export function MainTimeline({ events, actions, projects = [], tags = [], setTags, onStartTracking }) {
   const [filter,       setFilter]       = useState('all'); // 'all' | 'review'
   const [editingEvent, setEditingEvent] = useState(null);
 
@@ -439,6 +457,7 @@ export function MainTimeline({ events, actions, projects = [], onStartTracking }
       {editingEvent && (
         <EditModal
           ev={editingEvent} projects={projects} actions={actions}
+          tags={tags} setTags={setTags}
           onClose={() => setEditingEvent(null)}
         />
       )}

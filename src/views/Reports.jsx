@@ -40,6 +40,7 @@ export function Reports({ events, projects, clients }) {
   const [customTo, setCustomTo] = useState('');
   const [filterClient, setFilterClient] = useState('all');
   const [filterProject, setFilterProject] = useState('all');
+  const [search, setSearch] = useState('');
 
   const [from, to] = periodRange(period, customFrom, customTo);
   const fromDay = new Date(from.getFullYear(), from.getMonth(), from.getDate());
@@ -49,8 +50,7 @@ export function Reports({ events, projects, clients }) {
   const clientById = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])), [clients]);
 
   const filtered = useMemo(() => {
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    const todayMin = todayStart.getHours() * 60;
+    const q = search.trim().toLowerCase();
     return events.filter(ev => {
       const evDate = minToDate(ev.start);
       if (evDate < fromDay || evDate > toDay) return false;
@@ -59,9 +59,14 @@ export function Reports({ events, projects, clients }) {
         if (!p || p.clientId !== filterClient) return false;
       }
       if (filterProject !== 'all' && ev.project !== filterProject) return false;
+      if (q) {
+        const p = projById[ev.project];
+        const haystack = [ev.doc, ev.title, ev.app, p?.name].filter(Boolean).join(' ').toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
       return true;
     });
-  }, [events, fromDay, toDay, filterClient, filterProject, projById]);
+  }, [events, fromDay, toDay, filterClient, filterProject, projById, search]);
 
   const byProject = useMemo(() => {
     const map = {};
@@ -145,6 +150,36 @@ export function Reports({ events, projects, clients }) {
               </select>
             </div>
           )}
+
+          {/* Search */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 1, minWidth: 180 }}>
+            <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--fg-3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Buscar</label>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                style={{ position: 'absolute', left: 9, color: 'var(--fg-3)', pointerEvents: 'none', flex: 'none' }}>
+                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+              </svg>
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Arquivo, app, projeto…"
+                style={{
+                  fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg-1)',
+                  background: 'var(--bg)', border: '1px solid var(--line-2)',
+                  borderRadius: 'var(--r-sm)', padding: '6px 28px 6px 30px',
+                  outline: 'none', width: '100%', boxSizing: 'border-box',
+                }}
+              />
+              {search && (
+                <button onClick={() => setSearch('')} style={{
+                  position: 'absolute', right: 7, background: 'none', border: 'none',
+                  cursor: 'pointer', color: 'var(--fg-3)', display: 'grid', placeItems: 'center', padding: 2,
+                }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Summary cards */}

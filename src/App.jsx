@@ -682,7 +682,7 @@ export default function App() {
 
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1 }}>
             <Suspense fallback={null}>
-              {view === 'today'     && <MainView mode={t.mode} setMode={setMode} events={events} actions={actions} stats={stats} projects={projects} monitorAll={monitorAll} onToggleMonitor={() => setMonitorAll(v => !v)} liveTracking={liveTracking} />}
+              {view === 'today'     && <MainView mode={t.mode} setMode={setMode} events={events} actions={actions} stats={stats} projects={projects} monitorAll={monitorAll} onToggleMonitor={() => setMonitorAll(v => !v)} liveTracking={liveTracking} tags={tags} setTags={setTags} />}
               {view === 'review'    && <Review events={events} actions={actions} projects={projects} tags={tags} setTags={setTags} />}
               {view === 'dashboard' && <Dashboard projects={projects} events={events} />}
               {view === 'projects'  && <Projects projects={projects} setProjects={setProjects} clients={clients} tags={tags} setTags={setTags} />}

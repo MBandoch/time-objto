@@ -84,7 +84,7 @@ function DayHeader({ stats, mode, setMode, onConfirmAll, monitorAll, onToggleMon
   );
 }
 
-export function MainView({ mode, setMode, events, actions, stats, projects = [], monitorAll, onToggleMonitor, liveTracking }) {
+export function MainView({ mode, setMode, events, actions, stats, projects = [], monitorAll, onToggleMonitor, liveTracking, tags = [], setTags }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <DayHeader
@@ -92,7 +92,7 @@ export function MainView({ mode, setMode, events, actions, stats, projects = [],
         monitorAll={monitorAll} onToggleMonitor={onToggleMonitor} liveTracking={liveTracking}
       />
       <div className="main-body" style={{ flex: 1, minHeight: 0 }}>
-        {mode === 'timeline' && <MainTimeline events={events} actions={actions} projects={projects} onStartTracking={!monitorAll ? onToggleMonitor : null} />}
+        {mode === 'timeline' && <MainTimeline events={events} actions={actions} projects={projects} tags={tags} setTags={setTags} onStartTracking={!monitorAll ? onToggleMonitor : null} />}
         {mode === 'calendar' && <MainCalendar events={events} actions={actions} />}
         {mode === 'triage'   && <MainTriage   events={events} actions={actions} />}
       </div>
