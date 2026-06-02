@@ -1,19 +1,14 @@
 FROM node:20-alpine
-
 WORKDIR /app
 
-# Install build tools needed for better-sqlite3
-RUN apk add --no-cache python3 make g++
+# better-sqlite3 é um módulo nativo: precisa de toolchain para compilar em musl/Alpine.
+# Instalamos as build deps como pacote virtual e removemos após a instalação.
+COPY package*.json ./
+RUN apk add --no-cache --virtual .build-deps python3 make g++ \
+  && npm ci --omit=dev \
+  && apk del .build-deps
 
-COPY package.json ./
-RUN npm install --omit=dev
-
-COPY src/ ./src/
-
-# Data directory for SQLite file
-RUN mkdir -p /data
-ENV DB_PATH=/data/tracker.db
-
+COPY src ./src
 EXPOSE 3001
-
+ENV DB_PATH=/data/objto.db
 CMD ["node", "src/index.js"]

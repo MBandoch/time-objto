@@ -1,250 +1,191 @@
-'use strict';
-
-const express  = require('express');
-const cors     = require('cors');
-const path     = require('path');
-const Database = require('better-sqlite3');
-
-// ── Config ────────────────────────────────────────────────────────────────────
-
-const PORT    = process.env.PORT    || 3001;
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../data/tracker.db');
-
-// ── Database ──────────────────────────────────────────────────────────────────
-
-const db = new Database(DB_PATH);
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS sessions (
-    id           TEXT PRIMARY KEY,
-    username     TEXT NOT NULL DEFAULT '',
-    date         TEXT NOT NULL,
-    start        INTEGER NOT NULL,
-    end          INTEGER NOT NULL,
-    dur          INTEGER NOT NULL,
-    app          TEXT,
-    title        TEXT,
-    project_id   TEXT,
-    project_name TEXT,
-    client       TEXT,
-    billable     INTEGER DEFAULT 0,
-    rate         REAL    DEFAULT 0,
-    status       TEXT    DEFAULT 'confirmed',
-    manual       INTEGER DEFAULT 0,
-    synced_at    TEXT    DEFAULT (datetime('now'))
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_sessions_username ON sessions(username);
-  CREATE INDEX IF NOT EXISTS idx_sessions_date     ON sessions(date);
-  CREATE INDEX IF NOT EXISTS idx_sessions_project  ON sessions(project_id);
-`);
-
-// Migrate: add username column if upgrading from previous version
-try {
-  db.exec(`ALTER TABLE sessions ADD COLUMN username TEXT NOT NULL DEFAULT ''`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_username ON sessions(username)`);
-} catch { /* column already exists */ }
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const minToHHMM = (min) =>
-  `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
-
-function periodWhere(period) {
-  if (!period || period === 'all') return { clause: '1=1', params: [] };
-  if (period === 'today') return { clause: "date = date('now')", params: [] };
-  if (period === 'week') {
-    const d = new Date();
-    d.setDate(d.getDate() - d.getDay() + 1);
-    return { clause: 'date >= ?', params: [d.toISOString().slice(0, 10)] };
-  }
-  if (period === 'month') return { clause: "date >= date('now','start of month')", params: [] };
-  return { clause: '1=1', params: [] };
-}
-
-const upsertStmt = (db) => db.prepare(`
-  INSERT INTO sessions
-    (id, username, date, start, end, dur, app, title,
-     project_id, project_name, client, billable, rate, status, manual, synced_at)
-  VALUES
-    (@id, @username, @date, @start, @end, @dur, @app, @title,
-     @project_id, @project_name, @client, @billable, @rate, @status, @manual, datetime('now'))
-  ON CONFLICT(id) DO UPDATE SET
-    username     = excluded.username,
-    date         = excluded.date,
-    start        = excluded.start,
-    end          = excluded.end,
-    dur          = excluded.dur,
-    app          = excluded.app,
-    title        = excluded.title,
-    project_id   = excluded.project_id,
-    project_name = excluded.project_name,
-    client       = excluded.client,
-    billable     = excluded.billable,
-    rate         = excluded.rate,
-    status       = excluded.status,
-    synced_at    = datetime('now')
-`);
-
-function normalizeSession(s, username) {
-  return {
-    id:           s.id || `ev_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-    username:     username || s.username || '',
-    date:         s.date || new Date().toISOString().slice(0, 10),
-    start:        s.start ?? 0,
-    end:          s.end   ?? 0,
-    dur:          s.dur   ?? 0,
-    app:          s.app   || '',
-    title:        s.title || '',
-    project_id:   s.project || s.project_id || '',
-    project_name: s.projectName || s.project_name || '',
-    client:       s.client || '',
-    billable:     s.billable ? 1 : 0,
-    rate:         s.rate ?? 0,
-    status:       s.status || 'confirmed',
-    manual:       s.manual ? 1 : 0,
-  };
-}
-
-// ── Express ───────────────────────────────────────────────────────────────────
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
+const { initDb, getDb } = require('./db');
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '20mb' }));
 
-// ── Routes ────────────────────────────────────────────────────────────────────
+// ── helpers ────────────────────────────────────────────────────────────────────
 
-// Handshake — client calls this to validate connectivity before syncing
-app.get('/health', (req, res) => {
-  const total = db.prepare('SELECT COUNT(*) as n FROM sessions').get().n;
-  const users = db.prepare('SELECT COUNT(DISTINCT username) as n FROM sessions WHERE username != ""').get().n;
-  res.json({ ok: true, version: '1.1.0', total_sessions: total, users });
+const parseJson = (v, fallback = []) => { try { return JSON.parse(v); } catch { return fallback; } };
+
+// Mapeia colunas snake_case do SQLite para os nomes camelCase que o cliente usa.
+// O caminho de escrita já converte camelCase → snake_case; aqui fechamos o ciclo.
+function rowToSession(r) {
+  return {
+    ...r,
+    project: r.project_id ?? null,
+    clientId: r.client_id ?? null,
+    windowTitle: r.window_title ?? '',
+    tags: parseJson(r.tags),
+    billable: !!r.billable, manual: !!r.manual, auto: !!r.auto,
+  };
+}
+function rowToProject(r) {
+  return {
+    ...r,
+    clientId: r.client_id ?? null,
+    rules: parseJson(r.rules), tags: parseJson(r.tags),
+    billable: !!r.billable,
+  };
+}
+function rowToGoal(r) {
+  return { ...r, projectId: r.project_id ?? null, done: !!r.done };
+}
+
+// ── health ─────────────────────────────────────────────────────────────────────
+
+app.get('/health', (_req, res) => res.json({ ok: true, ts: Date.now() }));
+
+// ── GET /api/data ──────────────────────────────────────────────────────────────
+
+app.get('/api/data', (req, res) => {
+  const { user } = req.query;
+  if (!user) return res.status(400).json({ error: 'user required' });
+  const db = getDb();
+
+  const sessions  = db.prepare('SELECT * FROM sessions  WHERE username=? ORDER BY start').all(user).map(rowToSession);
+  const projects  = db.prepare('SELECT * FROM projects  WHERE username=? ORDER BY name').all(user).map(rowToProject);
+  const clients   = db.prepare('SELECT * FROM clients   WHERE username=? ORDER BY name').all(user);
+  const tags      = db.prepare('SELECT * FROM tags      WHERE username=? ORDER BY name').all(user);
+  const goals     = db.prepare('SELECT * FROM goals     WHERE username=?').all(user).map(rowToGoal);
+
+  res.json({ sessions, projects, clients, tags, goals });
 });
 
-// Bidirectional sync:
-//   Client  → server: all confirmed local sessions
-//   Server  → client: all sessions for this username (client merges them in)
-app.post('/sync', (req, res) => {
-  const { username, sessions = [] } = req.body;
-  if (!username || !username.trim()) {
-    return res.status(400).json({ error: 'username is required' });
-  }
-  const user = username.trim().toLowerCase();
+// ── POST /api/data ─────────────────────────────────────────────────────────────
 
-  const upsert = upsertStmt(db);
-  const insertMany = db.transaction((rows) => {
-    for (const s of rows) upsert.run(normalizeSession(s, user));
-  });
+app.post('/api/data', (req, res) => {
+  const { user } = req.query;
+  if (!user) return res.status(400).json({ error: 'user required' });
+  const { sessions, projects, clients, tags, goals } = req.body;
+  const db = getDb();
 
-  try {
-    if (sessions.length) insertMany(sessions);
+  const stmts = {
+    session: db.prepare(`
+      INSERT OR REPLACE INTO sessions
+        (id, username, start, end, dur, app, title, window_title, project_id, client_id, status, billable, rate, tags, manual, auto, confidence)
+      VALUES
+        (@id, @username, @start, @end, @dur, @app, @title, @window_title, @project_id, @client_id, @status, @billable, @rate, @tags, @manual, @auto, @confidence)
+    `),
+    project: db.prepare(`
+      INSERT OR REPLACE INTO projects (id, username, name, client_id, color, billable, rate, rules, tags)
+      VALUES (@id, @username, @name, @client_id, @color, @billable, @rate, @rules, @tags)
+    `),
+    client: db.prepare(`
+      INSERT OR REPLACE INTO clients (id, username, name, email, cnpj, phone, address, notes)
+      VALUES (@id, @username, @name, @email, @cnpj, @phone, @address, @notes)
+    `),
+    tag: db.prepare(`
+      INSERT OR REPLACE INTO tags (id, username, name, color)
+      VALUES (@id, @username, @name, @color)
+    `),
+    goal: db.prepare(`
+      INSERT OR REPLACE INTO goals (id, username, type, label, target, project_id, done)
+      VALUES (@id, @username, @type, @label, @target, @project_id, @done)
+    `),
+  };
 
-    // Return all sessions for this user so the client can merge
-    const serverSessions = db.prepare(
-      `SELECT * FROM sessions WHERE username = ? ORDER BY date DESC, start DESC LIMIT 2000`
-    ).all(user);
+  db.transaction(() => {
+    (sessions || []).forEach(s => stmts.session.run({
+      id: s.id, username: user,
+      start: s.start, end: s.end, dur: s.dur,
+      app: s.app || '', title: s.title || '', window_title: s.windowTitle || '',
+      project_id: s.project || null, client_id: s.clientId || null,
+      status: s.status || 'confirmed',
+      billable: s.billable ? 1 : 0, rate: s.rate || 0,
+      tags: JSON.stringify(s.tags || []),
+      manual: s.manual ? 1 : 0, auto: s.auto ? 1 : 0,
+      confidence: s.confidence || null,
+    }));
 
-    res.json({ ok: true, synced: sessions.length, sessions: serverSessions });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+    (projects || []).forEach(p => stmts.project.run({
+      id: p.id, username: user,
+      name: p.name, client_id: p.clientId || null,
+      color: p.color || '#6C7480',
+      billable: p.billable ? 1 : 0, rate: p.rate || 0,
+      rules: JSON.stringify(p.rules || []),
+      tags: JSON.stringify(p.tags || []),
+    }));
 
-// List sessions (optional username filter)
-app.get('/sessions', (req, res) => {
-  const { username, from, to, project, period, limit = 500 } = req.query;
-  const conditions = [];
-  const params     = [];
+    (clients || []).forEach(c => stmts.client.run({
+      id: c.id, username: user,
+      name: c.name, email: c.email || '',
+      cnpj: c.cnpj || '', phone: c.phone || '',
+      address: c.address || '', notes: c.notes || '',
+    }));
 
-  if (username) { conditions.push('username = ?'); params.push(username.toLowerCase()); }
-  if (from)     { conditions.push('date >= ?');    params.push(from); }
-  if (to)       { conditions.push('date <= ?');    params.push(to); }
-  if (project)  { conditions.push('project_id = ?'); params.push(project); }
-  if (period && period !== 'all') {
-    const w = periodWhere(period);
-    conditions.push(w.clause);
-    params.push(...w.params);
-  }
+    (tags || []).forEach(t => stmts.tag.run({
+      id: t.id, username: user, name: t.name, color: t.color || '#6C7480',
+    }));
 
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const rows  = db.prepare(
-    `SELECT * FROM sessions ${where} ORDER BY date DESC, start DESC LIMIT ?`
-  ).all(...params, Number(limit));
+    (goals || []).forEach(g => stmts.goal.run({
+      id: g.id, username: user,
+      type: g.type, label: g.label,
+      target: g.target || 0, project_id: g.projectId || null,
+      done: g.done ? 1 : 0,
+    }));
+  })();
 
-  res.json(rows);
-});
-
-// Summary report
-app.get('/report', (req, res) => {
-  const { username, period = 'week' } = req.query;
-  const { clause, params } = periodWhere(period);
-  const userClause = username ? `AND username = ?` : '';
-  const userParams = username ? [username.toLowerCase()] : [];
-
-  const rows = db.prepare(`
-    SELECT project_id, project_name, client,
-           MAX(billable) as billable, MAX(rate) as rate,
-           SUM(dur) as total_min, COUNT(*) as sessions
-    FROM sessions
-    WHERE ${clause} ${userClause} AND status = 'confirmed'
-    GROUP BY project_id ORDER BY total_min DESC
-  `).all(...params, ...userParams);
-
-  const totalMin   = rows.reduce((s, r) => s + r.total_min, 0);
-  const totalValue = rows.reduce((s, r) => s + (r.billable ? (r.total_min / 60) * r.rate : 0), 0);
-
-  res.json({
-    period, username: username || null,
-    total_min: totalMin,
-    total_hours: +(totalMin / 60).toFixed(2),
-    total_value: +totalValue.toFixed(2),
-    projects: rows.map((r) => ({
-      ...r,
-      total_hours: +(r.total_min / 60).toFixed(2),
-      value: r.billable ? +((r.total_min / 60) * r.rate).toFixed(2) : 0,
-    })),
-  });
-});
-
-// CSV export
-app.get('/export/csv', (req, res) => {
-  const { username, period = 'all' } = req.query;
-  const { clause, params } = periodWhere(period);
-  const userClause = username ? 'AND username = ?' : '';
-  const userParams = username ? [username.toLowerCase()] : [];
-
-  const rows = db.prepare(
-    `SELECT * FROM sessions WHERE ${clause} ${userClause} ORDER BY date, start`
-  ).all(...params, ...userParams);
-
-  const header = ['ID','Usuário','Data','Início','Fim','Dur(min)','App','Título',
-                  'Projeto','Cliente','Faturável','Taxa R$/h','Valor R$','Status','Synced'];
-  const lines = rows.map((r) => [
-    r.id, r.username, r.date, minToHHMM(r.start), minToHHMM(r.end), r.dur,
-    r.app, r.title, r.project_name, r.client,
-    r.billable ? 'Sim' : 'Não', r.rate,
-    r.billable ? +((r.dur / 60) * r.rate).toFixed(2) : 0,
-    r.status, r.synced_at,
-  ].map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','));
-
-  const csv = '﻿' + [header.map((h) => `"${h}"`).join(','), ...lines].join('\n');
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition',
-    `attachment; filename="objto-${username || 'all'}-${new Date().toISOString().slice(0,10)}.csv"`);
-  res.send(csv);
-});
-
-// Delete a session
-app.delete('/sessions/:id', (req, res) => {
-  const info = db.prepare('DELETE FROM sessions WHERE id = ?').run(req.params.id);
-  if (info.changes === 0) return res.status(404).json({ error: 'Not found' });
   res.json({ ok: true });
 });
 
-// ── Start ─────────────────────────────────────────────────────────────────────
+// ── DELETE /api/data/:table/:id ────────────────────────────────────────────────
 
-app.listen(PORT, () => {
-  console.log(`OBJ_TO Sync Server  →  http://localhost:${PORT}`);
-  console.log(`Auth: none (VPN-only deployment)`);
-  console.log(`DB:   ${DB_PATH}`);
+const DELETABLE = new Set(['sessions', 'projects', 'clients', 'tags', 'goals']);
+app.delete('/api/data/:table/:id', (req, res) => {
+  const { user } = req.query;
+  const { table, id } = req.params;
+  if (!user || !DELETABLE.has(table)) return res.status(400).json({ error: 'invalid' });
+  getDb().prepare(`DELETE FROM ${table} WHERE id=? AND username=?`).run(id, user);
+  res.json({ ok: true });
 });
+
+// ── POST /sync (legacy desktop compat) ────────────────────────────────────────
+
+app.post('/sync', (req, res) => {
+  const { username, sessions } = req.body;
+  if (!username || !Array.isArray(sessions)) return res.status(400).json({ error: 'invalid' });
+
+  const db = getDb();
+  const stmt = db.prepare(`
+    INSERT OR REPLACE INTO sessions
+      (id, username, start, end, dur, app, title, project_id, client_id, status, billable, rate, manual, auto, confidence)
+    VALUES
+      (@id, @username, @start, @end, @dur, @app, @title, @project_id, @client_id, @status, @billable, @rate, @manual, @auto, @confidence)
+  `);
+
+  db.transaction(() => sessions.forEach(s => stmt.run({
+    id: s.id, username,
+    start: s.start, end: s.end, dur: s.dur,
+    app: s.app || '', title: s.title || '',
+    project_id: s.project || s.project_id || null,
+    client_id: s.clientId || null,
+    status: s.status || 'confirmed',
+    billable: s.billable ? 1 : 0, rate: s.rate || 0,
+    manual: s.manual ? 1 : 0, auto: s.auto ? 1 : 0,
+    confidence: s.confidence || null,
+  })))();
+
+  const remote = db.prepare('SELECT * FROM sessions WHERE username=?').all(username).map(rowToSession);
+  res.json({ ok: true, sessions: remote });
+});
+
+// ── Static SPA ─────────────────────────────────────────────────────────────────
+
+const PUBLIC = path.join(__dirname, '../public');
+if (fs.existsSync(PUBLIC)) {
+  app.use(express.static(PUBLIC));
+  app.get('*', (_req, res) => res.sendFile(path.join(PUBLIC, 'index.html')));
+} else {
+  app.get('/', (_req, res) => res.json({ ok: true, mode: 'api-only', hint: 'build the React app and mount ./app/dist as /app/public' }));
+}
+
+// ── start ──────────────────────────────────────────────────────────────────────
+
+const PORT = process.env.PORT || 3001;
+initDb();
+app.listen(PORT, () => console.log(`OBJ_TO server :${PORT}  db=${process.env.DB_PATH || 'objto.db'}`));
