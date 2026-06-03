@@ -1,1 +1,5 @@
+<<<<<<< HEAD
 {"default":{"identifier":"default","description":"Capability for the main and widget windows","local":true,"windows":["main","widget"],"permissions":["core:default","core:window:allow-start-dragging","dialog:allow-open"]}}
+=======
+{"default":{"identifier":"default","description":"Capability for the main and widget windows","local":true,"windows":["main","widget"],"permissions":["core:default","core:window:allow-start-dragging","shell:allow-open"]}}
+>>>>>>> e8692258dfa2cad09e3ec78fc856609f4e402389
