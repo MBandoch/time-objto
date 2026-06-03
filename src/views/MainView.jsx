@@ -94,7 +94,7 @@ export function MainView({ mode, setMode, events, actions, stats, projects = [],
       <div className="main-body" style={{ flex: 1, minHeight: 0 }}>
         {mode === 'timeline' && <MainTimeline events={events} actions={actions} projects={projects} tags={tags} setTags={setTags} onStartTracking={!monitorAll ? onToggleMonitor : null} />}
         {mode === 'calendar' && <MainCalendar events={events} actions={actions} />}
-        {mode === 'triage'   && <MainTriage   events={events} actions={actions} />}
+        {mode === 'triage'   && <MainTriage   events={events} actions={actions} projects={projects} />}
       </div>
     </div>
   );

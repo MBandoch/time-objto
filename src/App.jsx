@@ -281,6 +281,15 @@ function PomoPrompt({ onStart, onDismiss }) {
 // First run: show onboarding if setup hasn't been completed
 const isFirstRun = !localStorage.getItem('objto_setup_done');
 
+function normalizeServerSession(row) {
+  return {
+    id: row.id, start: row.start, end: row.end, dur: row.dur,
+    app: row.app || 'chrome', title: row.title || '',
+    project: row.project_id || null, confidence: 'high',
+    status: row.status || 'confirmed', manual: !!row.manual, fromServer: true,
+  };
+}
+
 const TWEAK_DEFAULTS = {
   brand: 'objto',
   dark: false,
@@ -600,12 +609,6 @@ export default function App() {
   const eventsRef    = useRef(events);
   eventsRef.current  = events;
 
-  const normalizeServerSession = (row) => ({
-    id: row.id, start: row.start, end: row.end, dur: row.dur,
-    app: row.app || 'chrome', title: row.title || '',
-    project: row.project_id || null, confidence: 'high',
-    status: row.status || 'confirmed', manual: !!row.manual, fromServer: true,
-  });
 
   const syncWithServer = useCallback(async (localSessions) => {
     const s = syncRef.current;

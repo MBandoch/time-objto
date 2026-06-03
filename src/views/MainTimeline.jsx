@@ -383,20 +383,29 @@ export function MainTimeline({ events, actions, projects = [], tags = [], setTag
   const [editingEvent, setEditingEvent] = useState(null);
   const projById = useMemo(() => Object.fromEntries(projects.map(p => [p.id, p])), [projects]);
 
+  const needReview = useMemo(() => events.filter(e => e.status !== 'confirmed').length, [events]);
+
+  const visible = useMemo(() =>
+    filter === 'review' ? events.filter(e => e.status !== 'confirmed') : events,
+    [filter, events]
+  );
+
+  const geometry = useMemo(() => {
+    if (!events.length) return null;
+    const src = visible.length ? visible : events;
+    const starts    = src.map(e => e.start);
+    const ends      = src.map(e => e.end || (e.start + e.dur));
+    const startHour = Math.max(0, Math.floor(Math.min(...starts) / 60) - 1);
+    const endHour   = Math.min(24, Math.ceil(Math.max(...ends) / 60) + 1);
+    const totalPx   = (endHour - startHour) * HOUR_PX;
+    const hours     = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
+    const toY       = (min) => (min - startHour * 60) / 60 * HOUR_PX;
+    return { totalPx, hours, toY };
+  }, [visible, events]);
+
   if (!events.length) return <EmptyState onStartTracking={onStartTracking} />;
 
-  const needReview = events.filter(e => e.status !== 'confirmed').length;
-  const visible    = filter === 'review'
-    ? events.filter(e => e.status !== 'confirmed')
-    : events;
-
-  const starts   = visible.length ? visible.map(e => e.start) : events.map(e => e.start);
-  const ends     = visible.length ? visible.map(e => e.end || (e.start + e.dur)) : events.map(e => e.end || (e.start + e.dur));
-  const startHour = Math.max(0, Math.floor(Math.min(...starts) / 60) - 1);
-  const endHour   = Math.min(24, Math.ceil(Math.max(...ends) / 60) + 1);
-  const totalPx   = (endHour - startHour) * HOUR_PX;
-  const hours     = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
-  const toY       = (min) => (min - startHour * 60) / 60 * HOUR_PX;
+  const { totalPx, hours, toY } = geometry;
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>

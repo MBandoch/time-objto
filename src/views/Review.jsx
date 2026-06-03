@@ -96,19 +96,22 @@ function TabBar({ tab, setTab }) {
 export function Review({ events, actions, projects = [] }) {
   const [tab, setTab] = useState('lote');
   const projById = useMemo(() => Object.fromEntries(projects.map((p) => [p.id, p])), [projects]);
-  const queue = events.filter((e) => e.status !== 'confirmed');
-  const map = new Map();
-  queue.forEach((e) => {
-    const k = patOf(e);
-    if (!map.has(k)) map.set(k, []);
-    map.get(k).push(e);
-  });
-  const groups = [...map.entries()].map(([key, items]) => {
-    const counts = {};
-    items.forEach((e) => { if (e.project) counts[e.project] = (counts[e.project] || 0) + 1; });
-    const project = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0] || null;
-    return { key, items, project };
-  }).sort((a, b) => (a.project ? 0 : 1) - (b.project ? 0 : 1));
+  const { queue, groups } = useMemo(() => {
+    const queue = events.filter((e) => e.status !== 'confirmed');
+    const map = new Map();
+    queue.forEach((e) => {
+      const k = patOf(e);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(e);
+    });
+    const groups = [...map.entries()].map(([key, items]) => {
+      const counts = {};
+      items.forEach((e) => { if (e.project) counts[e.project] = (counts[e.project] || 0) + 1; });
+      const project = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0] || null;
+      return { key, items, project };
+    }).sort((a, b) => (a.project ? 0 : 1) - (b.project ? 0 : 1));
+    return { queue, groups };
+  }, [events]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
@@ -146,7 +149,7 @@ export function Review({ events, actions, projects = [] }) {
 
       {tab === 'triagem' && (
         <div style={{ flex: 1, minHeight: 0 }}>
-          <MainTriage events={events} actions={actions} />
+          <MainTriage events={events} actions={actions} projects={projects} />
         </div>
       )}
     </div>

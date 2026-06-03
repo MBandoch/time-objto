@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { PROJECTS, projById, APPS, fmt } from '../data.js';
+import { APPS, fmt } from '../data.js';
 import { AppTile, Confidence, ProjectPicker, Dot } from '../components/ui.jsx';
 
 const kbdStyle = {
@@ -15,12 +15,13 @@ function patternOf(ev) {
   return { kind: 'app', label: APPS[ev.app]?.name || ev.app };
 }
 
-export function MainTriage({ events, actions }) {
+export function MainTriage({ events, actions, projects = [] }) {
+  const projByIdMap = useMemo(() => Object.fromEntries(projects.map(p => [p.id, p])), [projects]);
   const queue = useMemo(() => events.filter((e) => e.status !== 'confirmed'), [events]);
   const [idx, setIdx] = useState(0);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [makeRule, setMakeRule] = useState(true);
-  const [rules, setRules] = useState(() => PROJECTS.flatMap((p) => p.rules.slice(0, 1).map((r) => ({ pattern: r.pattern, project: p.id, seed: true }))));
+  const [rules, setRules] = useState(() => projects.flatMap((p) => (p.rules || []).slice(0, 1).map((r) => ({ pattern: r.pattern, project: p.id, seed: true }))));
   const [flash, setFlash] = useState(null);
 
   const total = events.length;
@@ -29,11 +30,13 @@ export function MainTriage({ events, actions }) {
 
   const suggestions = useMemo(() => {
     if (!cur) return [];
-    const ids = [];
-    if (cur.project) ids.push(cur.project);
-    for (const p of ['paulista', 'brand', 'site', 'vega-deck', 'admin']) if (!ids.includes(p)) ids.push(p);
-    return ids.slice(0, 3).map((id) => projById[id]);
-  }, [cur]);
+    const ids = cur.project ? [cur.project] : [];
+    for (const p of projects) {
+      if (ids.length >= 3) break;
+      if (!ids.includes(p.id)) ids.push(p.id);
+    }
+    return ids.map((id) => projByIdMap[id]).filter(Boolean);
+  }, [cur, projects, projByIdMap]);
 
   const pat = cur ? patternOf(cur) : null;
   const offerRule = cur && cur.confidence === 'high' && cur.project && pat;
@@ -133,7 +136,7 @@ export function MainTriage({ events, actions }) {
               <label style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 16, padding: '10px 12px', borderRadius: 'var(--r-sm)', background: 'var(--bg-sunken)', cursor: 'pointer' }}>
                 <input type="checkbox" checked={makeRule} onChange={(e) => setMakeRule(e.target.checked)} style={{ accentColor: 'var(--accent)', width: 15, height: 15 }} />
                 <span style={{ fontSize: 12.5, color: 'var(--fg-2)', lineHeight: 1.4 }}>
-                  Sempre mapear <span className="mono" style={{ color: 'var(--fg-1)', fontWeight: 700 }}>{pat.label}</span> → {projById[cur.project].name}
+                  Sempre mapear <span className="mono" style={{ color: 'var(--fg-1)', fontWeight: 700 }}>{pat.label}</span> → {projByIdMap[cur.project]?.name ?? 'projeto'}
                   {moreInQueue > 0 && <span style={{ color: 'var(--accent)', fontWeight: 700 }}> · classifica mais {moreInQueue} agora</span>}
                 </span>
               </label>
@@ -155,7 +158,8 @@ export function MainTriage({ events, actions }) {
         </div>
         <div className="scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 7 }}>
           {rules.map((r, i) => {
-            const p = projById[r.project];
+            const p = projByIdMap[r.project];
+            if (!p) return null;
             const isFlash = flash === r.pattern && r.fresh;
             return (
               <div key={r.pattern + r.project + i} style={{
