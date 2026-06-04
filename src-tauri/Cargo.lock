@@ -3514,6 +3514,7 @@ dependencies = [
 name = "time-objto"
 version = "0.1.0"
 dependencies = [
+ "image",
  "serde",
  "tauri",
  "tauri-build",

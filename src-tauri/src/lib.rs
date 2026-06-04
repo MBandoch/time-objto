@@ -240,8 +240,11 @@ pub fn run() {
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;
 
-            let tray_icon = Image::from_bytes(include_bytes!("../icons/tray-icon.png"))
+            let tray_img = image::load_from_memory(include_bytes!("../icons/tray-icon.png"))
                 .expect("tray icon");
+            let rgba = tray_img.to_rgba8();
+            let (w, h) = rgba.dimensions();
+            let tray_icon = Image::new_owned(rgba.into_raw(), w, h);
 
             TrayIconBuilder::new()
                 .icon(tray_icon)
