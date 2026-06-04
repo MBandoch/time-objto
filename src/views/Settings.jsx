@@ -67,11 +67,12 @@ function Stepper({ value, onChange, min = 1, max = 120, suffix = 'm' }) {
   );
 }
 
-export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, sync, setSync, events = [], projects = [], username = '', setUsername, syncStatus, onSyncNow, monitorAll, setMonitorAll, closeBehavior = 'tray', setCloseBehavior, onOpenMiniWindow }) {
+export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, pomoConfig, setPomoConfig, sync, setSync, events = [], projects = [], username = '', setUsername, syncStatus, onSyncNow, monitorAll, setMonitorAll, closeBehavior = 'tray', setCloseBehavior, onOpenMiniWindow }) {
   const [idle, setIdle] = useState(true);
   const [titles, setTitles] = useState(true);
   const [reminders, setReminders] = useState(false);
   const [testStatus, setTestStatus] = useState(null);
+  const setPomo = (k, v) => setPomoConfig(c => ({ ...c, [k]: v }));
   const setSyncK = (k, v) => setSync(s => ({ ...s, [k]: v }));
   const urlValid = /^https?:\/\/.+/.test(sync.url.trim());
 
@@ -130,6 +131,21 @@ export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, sync, s
           </Row>
           <Row title="Destaque" desc="Apenas no visual OBJ_TO — Cursor e Nike definem seu próprio destaque." last>
             <Seg value={t.accent} options={['navy', 'clay', 'charcoal']} onChange={(v) => setTweak('accent', v)} />
+          </Row>
+        </Section>
+
+        <Section label="Timer Pomodoro">
+          <Row title="Intervalo de foco" desc="Duração de uma sessão de trabalho profundo antes do intervalo.">
+            <Stepper value={pomoConfig.focus} onChange={(v) => setPomo('focus', v)} min={5} max={90} />
+          </Row>
+          <Row title="Pausa curta" desc="Descanso entre as sessões de foco.">
+            <Stepper value={pomoConfig.shortBreak} onChange={(v) => setPomo('shortBreak', v)} min={1} max={30} />
+          </Row>
+          <Row title="Pausa longa" desc="Descanso maior após um ciclo completo de sessões.">
+            <Stepper value={pomoConfig.longBreak} onChange={(v) => setPomo('longBreak', v)} min={5} max={60} />
+          </Row>
+          <Row title="Sessões antes da pausa longa" desc="Quantos intervalos de foco completam um ciclo." last>
+            <Stepper value={pomoConfig.cycles} onChange={(v) => setPomo('cycles', v)} min={2} max={8} suffix="" />
           </Row>
         </Section>
 
