@@ -327,6 +327,7 @@ export default function App() {
   const [syncStatus, setSyncStatus] = useState(null);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [monitorAll, setMonitorAll] = useState(() => storage.loadMonitorAll());
+  const [blocklist, setBlocklist] = useState(() => storage.loadBlocklist());
   const [goals, setGoals] = useState(() => storage.loadGoals());
   const [clients, setClients] = useState(() => storage.loadClients());
   const [tags, setTags] = useState(() => storage.loadTags());
@@ -339,6 +340,7 @@ export default function App() {
   useEffect(() => { storage.savePomoConfig(pomoConfig); }, [pomoConfig]);
   useEffect(() => { storage.saveSync(sync); }, [sync]);
   useEffect(() => { storage.saveMonitorAll(monitorAll); }, [monitorAll]);
+  useEffect(() => { storage.saveBlocklist(blocklist); }, [blocklist]);
   useEffect(() => { storage.saveGoals(goals); }, [goals]);
   useEffect(() => { storage.saveClients(clients); }, [clients]);
   useEffect(() => { storage.saveTags(tags); }, [tags]);
@@ -440,6 +442,8 @@ export default function App() {
   // Refs for polling closures
   const projectsRef   = useRef(projects);
   projectsRef.current = projects;
+  const blocklistRef  = useRef(blocklist);
+  blocklistRef.current = blocklist;
   // Segmento de atividade em andamento: { project, app, title, doc, startMs }
   const segmentRef    = useRef(null);
 
@@ -505,6 +509,18 @@ export default function App() {
         }
 
         const det = detectActivity(title, projectsRef.current, process);
+
+        // Blocklist: ignora apps/processos que o utilizador não quer rastrear
+        const blocked = blocklistRef.current.some(b => {
+          const lc = b.toLowerCase();
+          return det.app?.toLowerCase().includes(lc) || process.toLowerCase().includes(lc);
+        });
+        if (blocked) {
+          commitSegment(now);
+          setLiveTracking(lt => (lt.running ? { ...lt, running: false } : lt));
+          return;
+        }
+
         const seg = segmentRef.current;
         const changed = !seg || seg.title !== det.title || seg.project !== det.project;
         if (changed) {
@@ -666,14 +682,14 @@ export default function App() {
 
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1 }}>
             <Suspense fallback={null}>
-              {view === 'today'     && <MainView mode={t.mode} setMode={setMode} events={events} actions={actions} stats={stats} projects={projects} monitorAll={monitorAll} onToggleMonitor={() => setMonitorAll(v => !v)} liveTracking={liveTracking} tags={tags} setTags={setTags} />}
+              {view === 'today'     && <MainView mode={t.mode} setMode={setMode} events={events} actions={actions} stats={stats} projects={projects} liveTracking={liveTracking} tags={tags} setTags={setTags} />}
               {view === 'review'    && <Review events={events} actions={actions} projects={projects} tags={tags} setTags={setTags} />}
               {view === 'dashboard' && <Dashboard projects={projects} events={events} />}
               {view === 'projects'  && <Projects projects={projects} setProjects={setProjects} clients={clients} tags={tags} setTags={setTags} events={events} />}
               {view === 'clients'   && <Clients clients={clients} setClients={setClients} projects={projects} />}
               {view === 'reports'   && <Reports events={events} projects={projects} clients={clients} />}
               {view === 'goals'     && <Goals goals={goals} setGoals={setGoals} events={events} projects={projects} />}
-              {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} onAddManual={() => setShowManualEntry(true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} events={events} projects={projects} username={username} setUsername={saveUsername} syncStatus={syncStatus} onSyncNow={() => syncWithServer()} monitorAll={monitorAll} setMonitorAll={setMonitorAll} closeBehavior={closeBehavior} setCloseBehavior={saveCloseBehavior} />}
+              {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} onAddManual={() => setShowManualEntry(true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} events={events} projects={projects} username={username} setUsername={saveUsername} syncStatus={syncStatus} onSyncNow={() => syncWithServer()} monitorAll={monitorAll} setMonitorAll={setMonitorAll} closeBehavior={closeBehavior} setCloseBehavior={saveCloseBehavior} blocklist={blocklist} setBlocklist={setBlocklist} />}
             </Suspense>
           </div>
         </main>

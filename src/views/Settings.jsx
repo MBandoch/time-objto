@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 function Switch({ on, onClick }) {
   return (
@@ -67,13 +67,23 @@ function Stepper({ value, onChange, min = 1, max = 120, suffix = 'm' }) {
   );
 }
 
-export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, pomoConfig, setPomoConfig, sync, setSync, events = [], projects = [], username = '', setUsername, syncStatus, onSyncNow, monitorAll, setMonitorAll, closeBehavior = 'tray', setCloseBehavior }) {
+export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, pomoConfig, setPomoConfig, sync, setSync, events = [], projects = [], username = '', setUsername, syncStatus, onSyncNow, monitorAll, setMonitorAll, closeBehavior = 'tray', setCloseBehavior, blocklist = [], setBlocklist }) {
   const [idle, setIdle] = useState(true);
   const [titles, setTitles] = useState(true);
   const [reminders, setReminders] = useState(false);
   const [testStatus, setTestStatus] = useState(null);
+  const [blockInput, setBlockInput] = useState('');
+  const blockInputRef = useRef(null);
   const setPomo = (k, v) => setPomoConfig(c => ({ ...c, [k]: v }));
   const setSyncK = (k, v) => setSync(s => ({ ...s, [k]: v }));
+
+  const addToBlocklist = () => {
+    const val = blockInput.trim();
+    if (!val || blocklist.includes(val)) return;
+    setBlocklist(b => [...b, val]);
+    setBlockInput('');
+    blockInputRef.current?.focus();
+  };
   const urlValid = /^https?:\/\/.+/.test(sync.url.trim());
 
   const testConnection = async () => {
@@ -111,6 +121,52 @@ export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, pomoCon
           <Row title="Ler títulos de janelas" desc="Necessário para categorização automática por nome de arquivo. Os títulos nunca saem do computador." last>
             <Switch on={titles} onClick={() => setTitles(v => !v)} />
           </Row>
+        </Section>
+
+        <Section label="Blocklist">
+          <div style={{ padding: '14px 0', borderBottom: '1px solid var(--line-1)' }}>
+            <div style={{ fontSize: 12.5, color: 'var(--fg-3)', marginBottom: 10, lineHeight: 1.5 }}>
+              Apps e sites ignorados pelo rastreamento automático. Use o nome do processo ou parte do título da janela.
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <input
+                ref={blockInputRef}
+                value={blockInput}
+                onChange={(e) => setBlockInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addToBlocklist()}
+                placeholder="ex: Teams, Slack, youtube.com"
+                spellCheck={false}
+                style={{
+                  flex: 1, fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--fg-1)',
+                  background: 'var(--bg)', border: '1px solid var(--line-2)',
+                  borderRadius: 'var(--r-sm)', padding: '7px 11px', outline: 'none',
+                }}
+              />
+              <button className="btn btn-ghost btn-sm" onClick={addToBlocklist} disabled={!blockInput.trim()}>
+                + Adicionar
+              </button>
+            </div>
+            {blocklist.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--fg-3)', fontStyle: 'italic' }}>Nenhum app bloqueado</div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {blocklist.map((item) => (
+                  <span key={item} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '4px 8px', borderRadius: 'var(--r-sm)',
+                    background: 'var(--bg-sunken)', border: '1px solid var(--line-1)',
+                    fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--fg-2)',
+                  }}>
+                    {item}
+                    <button
+                      onClick={() => setBlocklist(b => b.filter(x => x !== item))}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-3)', padding: 0, lineHeight: 1, fontSize: 14 }}
+                    >×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </Section>
 
         <Section label="Janela">

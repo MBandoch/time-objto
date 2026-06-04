@@ -7,6 +7,7 @@ const K = {
   goals:      'objto_goals',
   clients:    'objto_clients',
   tags:       'objto_tags',
+  blocklist:  'objto_blocklist',
 };
 
 const DEFAULTS = {
@@ -14,10 +15,11 @@ const DEFAULTS = {
   events:     [],
   pomoConfig: { focus: 25, shortBreak: 5, longBreak: 15, cycles: 4 },
   sync:       { enabled: false, url: '', interval: 'realtime' },
-  monitorAll: false,
+  monitorAll: true,
   goals:      [],
   clients:    [],
   tags:       [],
+  blocklist:  [],
 };
 
 function load(key, fallback) {
@@ -47,10 +49,12 @@ export const storage = {
   savePomoConfig: (v) => save(K.pomoConfig, v),
   saveSync:       (v) => save(K.sync,       v),
   saveMonitorAll: (v) => save(K.monitorAll, v),
-  loadGoals:      () => load(K.goals,   DEFAULTS.goals),
-  saveGoals:      (v) => save(K.goals,   v),
-  loadClients:    () => load(K.clients, DEFAULTS.clients),
-  saveClients:    (v) => save(K.clients, v),
-  loadTags:       () => load(K.tags,    DEFAULTS.tags),
-  saveTags:       (v) => save(K.tags,    v),
+  loadGoals:      () => load(K.goals,     DEFAULTS.goals),
+  saveGoals:      (v) => save(K.goals,     v),
+  loadClients:    () => load(K.clients,   DEFAULTS.clients),
+  saveClients:    (v) => save(K.clients,   v),
+  loadTags:       () => load(K.tags,      DEFAULTS.tags),
+  saveTags:       (v) => save(K.tags,      v),
+  loadBlocklist:  () => load(K.blocklist, DEFAULTS.blocklist),
+  saveBlocklist:  (v) => save(K.blocklist, v),
 };
