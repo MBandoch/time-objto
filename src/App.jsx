@@ -14,7 +14,6 @@ const Settings         = lazy(() => import('./views/Settings.jsx').then(m => ({ 
 const Goals            = lazy(() => import('./views/Goals.jsx').then(m => ({ default: m.Goals })));
 const Clients          = lazy(() => import('./views/Clients.jsx').then(m => ({ default: m.Clients })));
 const Reports          = lazy(() => import('./views/Reports.jsx').then(m => ({ default: m.Reports })));
-const Widget           = lazy(() => import('./views/Widget.jsx').then(m => ({ default: m.Widget })));
 const Onboarding       = lazy(() => import('./views/Onboarding.jsx').then(m => ({ default: m.Onboarding })));
 const ManualEntryModal = lazy(() => import('./components/ManualEntryModal.jsx').then(m => ({ default: m.ManualEntryModal })));
 
@@ -102,7 +101,7 @@ function ActivityBody({ liveTracking, projects, onToggle, onDiscard }) {
   );
 }
 
-function NowTracking({ onPopOut, pomo, onPomoToggle, onPomoStartStop, onPomoSkip, onPomoReset, pomoConfig, liveTracking, projects, onToggleTracking, onDiscardTracking, collapsed, onExpand }) {
+function NowTracking({ pomo, onPomoToggle, onPomoStartStop, onPomoSkip, onPomoReset, pomoConfig, liveTracking, projects, onToggleTracking, onDiscardTracking, collapsed, onExpand }) {
   const { running, elapsed } = liveTracking;
   const hh = Math.floor(elapsed / 3600), mm = Math.floor((elapsed % 3600) / 60), ss = elapsed % 60;
   const isIdle = !running && elapsed === 0;
@@ -142,17 +141,12 @@ function NowTracking({ onPopOut, pomo, onPomoToggle, onPomoStartStop, onPomoSkip
       {/* ── Timer principal ── */}
       {!isIdle && (
         <div style={{ padding: '14px 12px 13px', borderBottom: '1px solid var(--line-1)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ position: 'relative', width: 8, height: 8, flex: 'none' }}>
-                <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: timerColor }} />
-                {running && <span style={{ position: 'absolute', inset: -3, borderRadius: '50%', border: `1px solid ${timerColor}`, animation: 'ping 1.6s ease-out infinite' }} />}
-              </span>
-              <span className="eyebrow" style={{ fontSize: 9.5, color: timerColor }}>{statusLabel}</span>
-            </div>
-            <button className="btn-icon" onClick={onPopOut} title="Abrir mini widget" style={{ padding: 4 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>
-            </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <span style={{ position: 'relative', width: 8, height: 8, flex: 'none' }}>
+              <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: timerColor }} />
+              {running && <span style={{ position: 'absolute', inset: -3, borderRadius: '50%', border: `1px solid ${timerColor}`, animation: 'ping 1.6s ease-out infinite' }} />}
+            </span>
+            <span className="eyebrow" style={{ fontSize: 9.5, color: timerColor }}>{statusLabel}</span>
           </div>
           <span className="mono" style={{
             display: 'block', textAlign: 'center',
@@ -185,7 +179,7 @@ function NowTracking({ onPopOut, pomo, onPomoToggle, onPomoStartStop, onPomoSkip
   );
 }
 
-function Sidebar({ nav, view, onNavigate, collapsed, onToggleCollapse, pomoConfig, pomo, onPomoToggle, onPomoStartStop, onPomoSkip, onPomoReset, liveTracking, projects, onToggleTracking, onDiscardTracking, onPopOut, isMobile, onCloseDrawer }) {
+function Sidebar({ nav, view, onNavigate, collapsed, onToggleCollapse, pomoConfig, pomo, onPomoToggle, onPomoStartStop, onPomoSkip, onPomoReset, liveTracking, projects, onToggleTracking, onDiscardTracking, isMobile, onCloseDrawer }) {
   return (
     <>
       <div style={{
@@ -234,7 +228,6 @@ function Sidebar({ nav, view, onNavigate, collapsed, onToggleCollapse, pomoConfi
 
       <div style={{ flex: 'none' }}>
         <NowTracking
-          onPopOut={onPopOut}
           pomo={pomo} onPomoToggle={onPomoToggle} onPomoStartStop={onPomoStartStop}
           onPomoSkip={onPomoSkip} onPomoReset={onPomoReset} pomoConfig={pomoConfig}
           liveTracking={liveTracking} projects={projects}
@@ -396,17 +389,6 @@ export default function App() {
     return () => clearTimeout(pushTimerRef.current);
   }, [events, projects, clients, tags, goals, username]);
 
-  // Abre a janela flutuante real (Tauri); fora do Tauri, mostra a pré-visualização interna
-  const openMiniWindow = useCallback(async () => {
-    if (!isTauri()) { setView('widget'); return; }
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('open_mini_widget');
-    } catch {
-      setView('widget'); // fallback: nunca deixa o botão sem efeito
-    }
-  }, []);
-
   const toggleTracking = () => setLiveTracking(lt => ({
     ...lt, running: !lt.running, startedAt: lt.startedAt ?? Date.now(),
   }));
@@ -460,64 +442,6 @@ export default function App() {
   projectsRef.current = projects;
   // Segmento de atividade em andamento: { project, app, title, doc, startMs }
   const segmentRef    = useRef(null);
-
-  // Estado de rastreamento pronto para exibição na janela flutuante
-  const trackingPayload = useCallback(() => {
-    const lt = liveTrackingRef.current;
-    const p = projectsRef.current.find(pr => pr.id === lt.project);
-    return {
-      running: lt.running, elapsed: lt.elapsed,
-      doc: lt.doc || lt.title || '', app: lt.app || '',
-      projectName: p?.name || '', projectColor: p?.color || '',
-    };
-  }, []);
-
-  // Emite o estado para a janela flutuante sempre que muda + responde ao pedido inicial dela
-  useEffect(() => {
-    if (!isTauri()) return;
-    import('@tauri-apps/api/event').then(({ emit }) => emit('tracking', trackingPayload())).catch(() => {});
-  }, [liveTracking, projects, trackingPayload]);
-
-  useEffect(() => {
-    if (!isTauri()) return;
-    let unlisten = null, alive = true;
-    import('@tauri-apps/api/event').then(async ({ listen, emit }) => {
-      unlisten = await listen('widget-ready', () => emit('tracking', trackingPayload()));
-      if (!alive && unlisten) unlisten();
-    }).catch(() => {});
-    return () => { alive = false; if (unlisten) unlisten(); };
-  }, [trackingPayload]);
-
-  // Mantém o Rust sincronizado com o estado do timer (necessário para auto-abrir widget)
-  useEffect(() => {
-    if (!isTauri()) return;
-    import('@tauri-apps/api/core')
-      .then(({ invoke }) => invoke('set_tracking_active', { active: liveTracking.running }))
-      .catch(() => {});
-  }, [liveTracking.running]);
-
-  // Auto-abre o mini widget ao minimizar a janela principal com timer ativo
-  useEffect(() => {
-    if (!isTauri()) return;
-    let unlisten = null, alive = true;
-    (async () => {
-      try {
-        const [{ getCurrentWindow }, { invoke }] = await Promise.all([
-          import('@tauri-apps/api/window'),
-          import('@tauri-apps/api/core'),
-        ]);
-        const win = getCurrentWindow();
-        unlisten = await win.listen('tauri://resize', async () => {
-          if (!alive) return;
-          const minimized = await invoke('is_main_minimized').catch(() => false);
-          if (minimized && liveTrackingRef.current.running) {
-            invoke('open_mini_widget').catch(() => {});
-          }
-        });
-      } catch { /* fora do Tauri */ }
-    })();
-    return () => { alive = false; if (unlisten) unlisten(); };
-  }, []); // usa liveTrackingRef para evitar re-registro
 
   const POLL_MS = 4000;     // intervalo de verificação (igual ao Python: 4s)
   const IDLE_LIMIT = 120;   // segundos ociosos antes de pausar (igual ao Python)
@@ -727,7 +651,6 @@ export default function App() {
             onPomoToggle={pomoToggle} onPomoStartStop={pomoStartStop} onPomoSkip={pomoSkip} onPomoReset={pomoReset}
             liveTracking={liveTracking} projects={projects}
             onToggleTracking={toggleTracking} onDiscardTracking={discardTracking}
-            onPopOut={openMiniWindow}
             isMobile={isMobile} onCloseDrawer={() => setDrawerOpen(false)}
           />
         </nav>
@@ -750,8 +673,7 @@ export default function App() {
               {view === 'clients'   && <Clients clients={clients} setClients={setClients} projects={projects} />}
               {view === 'reports'   && <Reports events={events} projects={projects} clients={clients} />}
               {view === 'goals'     && <Goals goals={goals} setGoals={setGoals} events={events} projects={projects} />}
-              {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} onAddManual={() => setShowManualEntry(true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} events={events} projects={projects} username={username} setUsername={saveUsername} syncStatus={syncStatus} onSyncNow={() => syncWithServer()} monitorAll={monitorAll} setMonitorAll={setMonitorAll} closeBehavior={closeBehavior} setCloseBehavior={saveCloseBehavior} onOpenMiniWindow={openMiniWindow} />}
-              {view === 'widget'    && <Widget liveTracking={liveTracking} projects={projects} onOpenWindow={openMiniWindow} />}
+              {view === 'settings'  && <Settings t={t} setTweak={setTweak} onReplayOnboarding={() => setTweak('onboarding', true)} onAddManual={() => setShowManualEntry(true)} pomoConfig={pomoConfig} setPomoConfig={setPomoConfig} sync={sync} setSync={setSync} events={events} projects={projects} username={username} setUsername={saveUsername} syncStatus={syncStatus} onSyncNow={() => syncWithServer()} monitorAll={monitorAll} setMonitorAll={setMonitorAll} closeBehavior={closeBehavior} setCloseBehavior={saveCloseBehavior} />}
             </Suspense>
           </div>
         </main>

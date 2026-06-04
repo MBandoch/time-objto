@@ -67,7 +67,7 @@ function Stepper({ value, onChange, min = 1, max = 120, suffix = 'm' }) {
   );
 }
 
-export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, pomoConfig, setPomoConfig, sync, setSync, events = [], projects = [], username = '', setUsername, syncStatus, onSyncNow, monitorAll, setMonitorAll, closeBehavior = 'tray', setCloseBehavior, onOpenMiniWindow }) {
+export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, pomoConfig, setPomoConfig, sync, setSync, events = [], projects = [], username = '', setUsername, syncStatus, onSyncNow, monitorAll, setMonitorAll, closeBehavior = 'tray', setCloseBehavior }) {
   const [idle, setIdle] = useState(true);
   const [titles, setTitles] = useState(true);
   const [reminders, setReminders] = useState(false);
@@ -114,11 +114,8 @@ export function Settings({ t, setTweak, onReplayOnboarding, onAddManual, pomoCon
         </Section>
 
         <Section label="Janela">
-          <Row title="Ao fechar a janela" desc="Minimizar para a bandeja mantém o rastreamento rodando em segundo plano. Encerrar fecha o aplicativo por completo.">
+          <Row title="Ao fechar a janela" desc="Minimizar para a bandeja mantém o rastreamento rodando em segundo plano. Encerrar fecha o aplicativo por completo." last>
             <Seg value={closeBehavior} options={['tray', 'quit']} labels={['Bandeja', 'Encerrar']} onChange={(v) => setCloseBehavior && setCloseBehavior(v)} />
-          </Row>
-          <Row title="Janela flutuante" desc="Abre uma janela pequena always-on-top com o rastreamento atual, sobre os outros programas." last>
-            <button className="btn btn-ghost btn-sm" onClick={onOpenMiniWindow}>Abrir</button>
           </Row>
         </Section>
 
